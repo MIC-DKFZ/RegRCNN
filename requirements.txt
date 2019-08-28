@@ -28,7 +28,7 @@ imagesize==1.0.0
 isort==4.3.4
 jedi==0.12.1
 jeepney==0.3.1
-Jinja2==2.10
+Jinja2==2.10.1
 joblib==0.13.2
 jsonschema==2.6.0
 Keras-Applications==1.0.7
@@ -79,8 +79,8 @@ pyzmq==17.1.0
 QtAwesome==0.4.4
 qtconsole==4.3.1
 QtPy==1.4.2
-requests==2.19.1
-rope==0.10.7
+requests==2.22.0
+rope==0.14.0
 scikit-image==0.14.0
 scikit-learn==0.21.3
 scipy==1.1.0
@@ -106,8 +106,8 @@ traceback2==1.4.0
 traitlets==4.3.2
 typed-ast==1.1.0
 unittest2==1.1.0
-urllib3==1.23
+urllib3==1.25.3
 wcwidth==0.1.7
 webencodings==0.5.1
-Werkzeug==0.14.1
+Werkzeug==0.15.5
 wrapt==1.10.11

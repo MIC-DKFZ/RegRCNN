@@ -114,7 +114,7 @@ Two example data loaders are provided in RegRCNN/datasets. The way I load data i
 
 This framework features all models explored in [3] (implemented in 2D + 3D): The proposed Retina U-Net, a simple but effective Architecture fusing state-of-the-art semantic segmentation with object detection,<br><br>
 <p align="center"><img src="assets/retu_figure.png"  width=50%></p><br>
-also implementations of prevalent object detectors, such as Mask R-CNN, Faster R-CNN+ (Faster R-CNN w\ RoIAlign), Retina Net, U-Faster R-CNN+ (the two stage counterpart of Retina U-Net: Faster R-CNN with auxiliary semantic segmentation), DetU-Net (a U-Net like segmentation architecture with heuristics for object detection.)<br><br><br>
+also implementations of prevalent object detectors, such as Mask R-CNN, Faster R-CNN+ (Faster R-CNN w\ RoIAlign), Retina Net, Detection U-Net (a U-Net like segmentation architecture with heuristics for object detection.)<br><br><br>
 <p align="center"><img src="assets/baseline_figure.png"  width=85%></p><br>
 
 ## Training annotations

@@ -30,6 +30,7 @@ This is a comprehensive framework for object detection featuring:
 - integration of MIC-DKFZ batch generators for extensive data augmentation [6].
 - possible evaluation of instance segmentation and/or semantic segmentation by dice scores.
 <br/>
+
 [3] Lin, Tsung-Yi, et al.  <a href="https://arxiv.org/abs/1708.02002">"Focal Loss for Dense Object Detection"</a> TPAMI, 2018.<br>
 [4] Jaeger, Paul et al. <a href="http://arxiv.org/abs/1811.08661"> "Retina U-Net: Embarrassingly Simple Exploitation
 of Segmentation Supervision for Medical Object Detection" </a>, 2018
@@ -112,7 +113,7 @@ Two example data loaders are provided in RegRCNN/datasets. The way I load data i
 
 ## Models
 
-This framework features all models explored in [3] (implemented in 2D + 3D): The proposed Retina U-Net, a simple but effective Architecture fusing state-of-the-art semantic segmentation with object detection,<br><br>
+This framework features models explored in [4] (implemented in 2D + 3D): The proposed Retina U-Net, a simple but effective Architecture fusing state-of-the-art semantic segmentation with object detection,<br><br>
 <p align="center"><img src="assets/retu_figure.png"  width=50%></p><br>
 also implementations of prevalent object detectors, such as Mask R-CNN, Faster R-CNN+ (Faster R-CNN w\ RoIAlign), Retina Net, Detection U-Net (a U-Net like segmentation architecture with heuristics for object detection.)<br><br><br>
 <p align="center"><img src="assets/baseline_figure.png"  width=85%></p><br>
@@ -135,7 +136,7 @@ This framework provides an inference module, which automatically handles patchin
 
 ## Consolidation of predictions 
 ### Weighted Box Clustering
-Multiple predictions of the same image (from  test time augmentations, tested epochs and overlapping patches), result in a high amount of boxes (or cubes), which need to be consolidated. In semantic segmentation, the final output would typically be obtained by averaging every pixel over all predictions. As described in [3], **weighted box clustering** (WBC) does this for box predictions:<br>
+Multiple predictions of the same image (from  test time augmentations, tested epochs and overlapping patches), result in a high amount of boxes (or cubes), which need to be consolidated. In semantic segmentation, the final output would typically be obtained by averaging every pixel over all predictions. As described in [4], **weighted box clustering** (WBC) does this for box predictions:<br>
 <p align="center"><img src="assets/wcs_text.png"  width=650><br><br></p>
 <p align="center"><img src="assets/wcs_readme.png"  width=800><br><br></p>
 

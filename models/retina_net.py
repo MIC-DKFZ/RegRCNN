@@ -246,8 +246,9 @@ def compute_focal_class_loss(anchor_matches, class_pred_logits, gamma=2.):
 
     :param anchor_matches: (n_anchors). [-1, 0, class] for negative, neutral, and positive matched anchors.
     :param class_pred_logits: (n_anchors, n_classes). logits from classifier sub-network.
+    :param gamma: g in above formula, good results with g=2 in original paper.
     :return: loss: torch tensor
-    :return: np_neg_ix: 1D array containing indices of the neg_roi_logits, which have been sampled for training.
+    :return: focal loss
     """
     # Positive and Negative anchors contribute to the loss,
     # but neutral anchors (match value = 0) don't.

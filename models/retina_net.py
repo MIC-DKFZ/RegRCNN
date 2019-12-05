@@ -20,8 +20,9 @@ import utils.model_utils as mutils
 import utils.exp_utils as utils
 import sys
 sys.path.append('../')
-from cuda_functions.nms_2D.pth_nms import nms_gpu as nms_2D
-from cuda_functions.nms_3D.pth_nms import nms_gpu as nms_3D
+# from cuda_functions.nms_2D.pth_nms import nms_gpu as nms_2D
+# from cuda_functions.nms_3D.pth_nms import nms_gpu as nms_3D
+from custom_extensions.nms import nms
 
 import numpy as np
 import torch
@@ -285,7 +286,7 @@ def refine_detections(anchors, probs, deltas, regressions, batch_ixs, cf):
     :param batch_ixs: (n_proposals) batch element assignemnt info for re-allocation.
     :return: result: (n_final_detections, (y1, x1, y2, x2, (z1), (z2), batch_ix, pred_class_id, pred_score, pred_regr))
     """
-    anchors = anchors.repeat(len(np.unique(batch_ixs)), 1)
+    anchors = anchors.repeat(batch_ixs.unique().shape[0], 1)
 
     #flatten foreground probabilities, sort and trim down to highest confidences by pre_nms limit.
     fg_probs = probs[:, 1:].contiguous()
@@ -328,11 +329,11 @@ def refine_detections(anchors, probs, deltas, regressions, batch_ixs, cf):
             ix_rois = ix_rois[order, :]
             ix_scores = ix_scores
 
-            if cf.dim == 2:
-                class_keep = nms_2D(torch.cat((ix_rois, ix_scores.unsqueeze(1)), dim=1), cf.detection_nms_threshold)
-            else:
-                class_keep = nms_3D(torch.cat((ix_rois, ix_scores.unsqueeze(1)), dim=1), cf.detection_nms_threshold)
-
+            # if cf.dim == 2:
+            #     class_keep = nms_2D(torch.cat((ix_rois, ix_scores.unsqueeze(1)), dim=1), cf.detection_nms_threshold)
+            # else:
+            #     class_keep = nms_3D(torch.cat((ix_rois, ix_scores.unsqueeze(1)), dim=1), cf.detection_nms_threshold)
+            class_keep = nms.nms(ix_rois, ix_scores, cf.detection_nms_threshold)
             # map indices back.
             class_keep = keep[bixs[ixs[order[class_keep]]]]
             # merge indices over classes for current batch element
@@ -735,7 +736,8 @@ class net(nn.Module):
                 class_loss, neg_anchor_ix = compute_class_loss(anchor_class_match, class_logits[b])
                 # add negative anchors used for loss to results_dict for monitoring.
                 neg_anchors = mutils.clip_boxes_numpy(
-                    self.np_anchors[np.argwhere(anchor_class_match == -1)][0, neg_anchor_ix], img.shape[2:])
+                    self.np_anchors[np.argwhere(anchor_class_match.cpu().numpy() == -1)][neg_anchor_ix, 0],
+                    img.shape[2:])
                 for n in neg_anchors:
                     box_results_list[b].append({'box_coords': n, 'box_type': 'neg_anchor'})
             rg_loss = compute_rg_loss(self.cf.prediction_tasks, anchor_target_rgs, pred_rgs[b], anchor_class_match)

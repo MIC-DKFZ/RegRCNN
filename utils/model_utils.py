@@ -30,10 +30,13 @@ from scipy.ndimage.measurements import label as lb
 import torch
 from torch.autograd import Variable
 
-from cuda_functions.nms_2D.pth_nms import nms_gpu as nms_2D
-from cuda_functions.nms_3D.pth_nms import nms_gpu as nms_3D
-from cuda_functions.roi_align_2D.roi_align.crop_and_resize import CropAndResizeFunction as ra2D
-from cuda_functions.roi_align_3D.roi_align.crop_and_resize import CropAndResizeFunction as ra3D
+# from cuda_functions.nms_2D.pth_nms import nms_gpu as nms_2D
+# from cuda_functions.nms_3D.pth_nms import nms_gpu as nms_3D
+# from cuda_functions.roi_align_2D.roi_align.crop_and_resize import CropAndResizeFunction as ra2D
+# from cuda_functions.roi_align_3D.roi_align.crop_and_resize import CropAndResizeFunction as ra3D
+
+from custom_extensions.nms import nms
+from custom_extensions.roi_align import roi_align
 
 
 ############################################################
@@ -390,6 +393,8 @@ def refine_proposals(rpn_pred_probs, rpn_pred_deltas, proposal_count, batch_anch
     norm = torch.from_numpy(cf.scale).float().cuda()
     anchors = batch_anchors.clone()
 
+
+
     batch_scores = rpn_pred_probs[:, :, 1]
     # norm deltas
     batch_deltas = rpn_pred_deltas * std_dev
@@ -414,12 +419,12 @@ def refine_proposals(rpn_pred_probs, rpn_pred_deltas, proposal_count, batch_anch
         if batch_deltas.shape[-1] == 4:
             boxes = apply_box_deltas_2D(anchors[order, :], deltas)
             boxes = clip_boxes_2D(boxes, cf.window)
-            keep = nms_2D(torch.cat((boxes, scores.unsqueeze(1)), 1), cf.rpn_nms_threshold)
-
         else:
             boxes = apply_box_deltas_3D(anchors[order, :], deltas)
             boxes = clip_boxes_3D(boxes, cf.window)
-            keep = nms_3D(torch.cat((boxes, scores.unsqueeze(1)), 1), cf.rpn_nms_threshold)
+        # boxes are y1,x1,y2,x2, torchvision-nms requires x1,y1,x2,y2, but consistent swap x<->y is irrelevant.
+        keep = nms.nms(boxes, scores, cf.rpn_nms_threshold)
+
 
         keep = keep[:proposal_count]
         boxes = boxes[keep, :]
@@ -485,6 +490,7 @@ def pyramid_roi_align(feature_maps, rois, pool_size, pyramid_levels, dim):
     # Loop through levels and apply ROI pooling to each.
     pooled = []
     box_to_level = []
+    fmap_shapes = [f.shape for f in feature_maps]
     for level_ix, level in enumerate(pyramid_levels):
         ix = roi_level == level
         if not ix.any():
@@ -499,24 +505,19 @@ def pyramid_roi_align(feature_maps, rois, pool_size, pyramid_levels, dim):
 
         # Stop gradient propogation to ROI proposals
         level_boxes = level_boxes.detach()
-
-        # Crop and Resize
-        # From Mask R-CNN paper: "We sample four regular locations, so
-        # that we can evaluate either max or average pooling. In fact,
-        # interpolating only a single value at each bin center (without
-        # pooling) is nearly as effective."
-        #
-        # Here we use the simplified approach of a single value per bin,
-        # which is how is done in tf.crop_and_resize()
-        #
-        # Also fixed a bug from original implementation, reported in:
-        # https://hackernoon.com/how-tensorflows-tf-image-resize-stole-60-days-of-my-life-aba5eb093f35
-
         if len(pool_size) == 2:
-            pooled_features = ra2D(pool_size[0], pool_size[1], 0)(feature_maps[level_ix], level_boxes, ind)
+            # remap to feature map coordinate system
+            y_exp, x_exp = fmap_shapes[level_ix][2:]  # exp = expansion
+            level_boxes.mul_(torch.tensor([y_exp, x_exp, y_exp, x_exp], dtype=torch.float32).cuda())
+            pooled_features = roi_align.roi_align_2d(feature_maps[level_ix],
+                                                     torch.cat((ind.unsqueeze(1).float(), level_boxes), dim=1),
+                                                     pool_size)
         else:
-            pooled_features = ra3D(pool_size[0], pool_size[1], pool_size[2], 0)(feature_maps[level_ix], level_boxes, ind)
-
+            y_exp, x_exp, z_exp = fmap_shapes[level_ix][2:]
+            level_boxes.mul_(torch.tensor([y_exp, x_exp, y_exp, x_exp, z_exp, z_exp], dtype=torch.float32).cuda())
+            pooled_features = roi_align.roi_align_3d(feature_maps[level_ix],
+                                                     torch.cat((ind.unsqueeze(1).float(), level_boxes), dim=1),
+                                                     pool_size)
         pooled.append(pooled_features)
 
 
@@ -604,10 +605,7 @@ def refine_detections(cf, batch_ixs, rois, deltas, scores, regressions):
                 ix_scores, order = ix_scores.sort(descending=True)
                 ix_rois = ix_rois[order, :]
 
-                if cf.dim == 2:
-                    class_keep = nms_2D(torch.cat((ix_rois, ix_scores.unsqueeze(1)), dim=1), cf.detection_nms_threshold)
-                else:
-                    class_keep = nms_3D(torch.cat((ix_rois, ix_scores.unsqueeze(1)), dim=1), cf.detection_nms_threshold)
+                class_keep = nms.nms(ix_rois, ix_scores, cf.detection_nms_threshold)
 
                 # map indices back.
                 class_keep = keep[score_keep[bixs[ixs[order[class_keep]]]]]
@@ -743,17 +741,22 @@ def loss_example_mining(cf, batch_proposals, batch_gt_boxes, batch_gt_masks, bat
             std_dev = torch.from_numpy(cf.bbox_std_dev).float().cuda()
             deltas /= std_dev
 
-            # Assign positive ROIs to GT masks
-            roi_masks = gt_masks[roi_gt_box_assignment,:,:]
-
+            roi_masks = gt_masks[roi_gt_box_assignment].unsqueeze(1)  # .squeeze(-1)
+            assert roi_masks.shape[-1] == 1
             # Compute mask targets
             boxes = positive_rois
-            box_ids = torch.arange(roi_masks.size()[0]).int().cuda()
+            box_ids = torch.arange(roi_masks.shape[0]).cuda().unsqueeze(1).float()
 
             if len(cf.mask_shape) == 2:
-                masks = ra2D(cf.mask_shape[0], cf.mask_shape[1], 0)(roi_masks.unsqueeze(1), boxes, box_ids)
+                # todo what are the dims of roi_masks? (n_matched_boxes_with_gts, 1 (dummy channel dim), y,x, 1 (WHY?))
+                masks = roi_align.roi_align_2d(roi_masks,
+                                               torch.cat((box_ids, boxes), dim=1),
+                                               cf.mask_shape)
             else:
-                masks = ra3D(cf.mask_shape[0], cf.mask_shape[1], cf.mask_shape[2], 0)(roi_masks.unsqueeze(1), boxes, box_ids)
+                masks = roi_align.roi_align_3d(roi_masks,
+                                               torch.cat((box_ids, boxes), dim=1),
+                                               cf.mask_shape)
+
 
             masks = masks.squeeze(1)
             # Threshold mask pixels at 0.5 to have GT masks be 0 or 1 to use with
@@ -1375,7 +1378,6 @@ def get_coords_gpu(binary_mask, n_components, dim):
 #  Pytorch Utility Functions
 ############################################################
 
-
 def unique1d(tensor):
     """discard all elements of tensor that occur more than once; make tensor unique.
     :param tensor:
@@ -1384,13 +1386,12 @@ def unique1d(tensor):
     if tensor.size()[0] == 0 or tensor.size()[0] == 1:
         return tensor
     tensor = tensor.sort()[0]
-    unique_bool = tensor[1:] != tensor [:-1]
-    first_element = Variable(torch.ByteTensor([True]), requires_grad=False)
+    unique_bool = tensor[1:] != tensor[:-1]
+    first_element = torch.tensor([True], dtype=torch.bool, requires_grad=False)
     if tensor.is_cuda:
         first_element = first_element.cuda()
-    unique_bool = torch.cat((first_element, unique_bool),dim=0)
+    unique_bool = torch.cat((first_element, unique_bool), dim=0)
     return tensor[unique_bool.data]
-
 
 
 def log2(x):

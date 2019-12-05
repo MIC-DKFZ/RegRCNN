@@ -668,17 +668,19 @@ class net(nn.Module):
                 rpn_match = np.array([-1]*self.np_anchors.shape[0])
                 rpn_target_deltas = np.array([0])
 
-            rpn_match = torch.from_numpy(rpn_match).cuda()
+            rpn_match_gpu = torch.from_numpy(rpn_match).cuda()
             rpn_target_deltas = torch.from_numpy(rpn_target_deltas).float().cuda()
 
             # compute RPN losses.
-            rpn_class_loss, neg_anchor_ix = compute_rpn_class_loss(rpn_class_logits[b], rpn_match, self.cf.shem_poolsize)
-            rpn_bbox_loss = compute_rpn_bbox_loss(rpn_pred_deltas[b], rpn_target_deltas, rpn_match)
+            rpn_class_loss, neg_anchor_ix = compute_rpn_class_loss(rpn_class_logits[b], rpn_match_gpu, self.cf.shem_poolsize)
+            rpn_bbox_loss = compute_rpn_bbox_loss(rpn_pred_deltas[b], rpn_target_deltas, rpn_match_gpu)
             batch_rpn_class_loss += rpn_class_loss /img.shape[0]
             batch_rpn_bbox_loss += rpn_bbox_loss /img.shape[0]
 
             # add negative anchors used for loss to output list for monitoring.
-            neg_anchors = mutils.clip_boxes_numpy(self.np_anchors[np.argwhere(rpn_match == -1)][0, neg_anchor_ix], img.shape[2:])
+            # neg_anchor_ix = neg_ix come from shem and mark positions in roi_probs_neg = rpn_class_logits[neg_indices]
+            # with neg_indices = rpn_match == -1
+            neg_anchors = mutils.clip_boxes_numpy(self.np_anchors[rpn_match == -1][neg_anchor_ix], img.shape[2:])
             for n in neg_anchors:
                 box_results_list[b].append({'box_coords': n, 'box_type': 'neg_anchor'})
 

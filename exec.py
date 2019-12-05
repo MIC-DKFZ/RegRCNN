@@ -286,7 +286,7 @@ if __name__ == '__main__':
             folds = range(cf.n_cv_splits)
         if args.dev:
             folds = folds[:2]
-            cf.batch_size, cf.num_test_patients, cf.test_n_epochs = 1 if cf.dim==2 else 1, 2, 2
+            cf.batch_size, cf.max_test_patients, cf.test_n_epochs = 1 if cf.dim==2 else 1, 2, 2
         else:
             torch.backends.cudnn.benchmark = cf.cuda_benchmark
         for fold in folds:

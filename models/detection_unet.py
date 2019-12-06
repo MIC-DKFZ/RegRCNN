@@ -420,9 +420,9 @@ class net(nn.Module):
                 'class_loss': classification loss for monitoring. here: dummy array, since no classification conducted.
         """
 
-        img = torch.from_numpy(batch["data"]).cuda()
+        img = torch.from_numpy(batch["data"]).float().cuda()
         seg = torch.from_numpy(batch["seg"]).long().cuda()
-        seg_ohe = torch.from_numpy(mutils.get_one_hot_encoding(batch['seg'], self.cf.num_seg_classes)).cuda()
+        seg_ohe = torch.from_numpy(mutils.get_one_hot_encoding(batch['seg'], self.cf.num_seg_classes)).float().cuda()
 
         results_dict = {}
         seg_logits, box_coords, scores = self.forward(img)
@@ -457,7 +457,7 @@ class net(nn.Module):
 
         if self.cf.seg_loss_mode == 'wce' or self.cf.seg_loss_mode == 'dice_wce':
             loss += F.cross_entropy(seg_logits, seg[:, 0], weight=torch.FloatTensor(self.cf.wce_weights).cuda(),
-                                    reduction='elementwise_mean')
+                                    reduction='mean')
 
         results_dict['torch_loss'] = loss
         seg_pred = seg_pred.argmax(dim=1).unsqueeze(dim=1).cpu().data.numpy()

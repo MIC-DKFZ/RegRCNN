@@ -73,7 +73,6 @@ def IO_safe(func, *args, _tries=5, _raise=True, **kwargs):
                 print("After attempting execution {} time{}, following error occurred:\n{}".format(_try+1,"" if _try==0 else "s", e))
                 continue
 
-
 def query_nvidia_gpu(device_id, d_keyword=None, no_units=False):
     """
     :param device_id:
@@ -143,9 +142,9 @@ class Nvidia_GPU_Logger(object):
             self.get_vals()
             self.log["time"].append(time.time())
             self.log["gpu_util"].append(self.current_vals["gpu_graphics_util"])
-            if self.count != None:
+            if self.count is not None:
                 i += 1
-                if i == count:
+                if i == self.count:
                     exit(0)
             time.sleep(self.interval)
 
@@ -166,14 +165,26 @@ class CombinedLogger(object):
         self.tboard = SummaryWriter(log_dir=log_dir)
         self.times = {}
         self.fold = fold
-        # monitor system metrics (cpu, mem, ...)
+
+        self.pylogger.setLevel(logging.DEBUG)
+        self.log_file = os.path.join(log_dir, 'exec.log')
+        self.pylogger.addHandler(logging.FileHandler(self.log_file))
         if not server_env:
+            self.pylogger.addHandler(ColorHandler())
+        else:
+            self.pylogger.addHandler(logging.StreamHandler())
+        self.pylogger.propagate = False
+
+        # monitor system metrics (cpu, mem, ...)
+        if not server_env and sysmetrics_interval>0:
             self.sysmetrics = pd.DataFrame(columns=["global_step", "rel_time", r"CPU (%)", "mem_used (GB)", r"mem_used (%)",
                                                     r"swap_used (GB)", r"gpu_utilization (%)"], dtype="float16")
             for device in range(torch.cuda.device_count()):
                 self.sysmetrics["mem_allocd (GB) by torch on {:10s}".format(torch.cuda.get_device_name(device))] = np.nan
                 self.sysmetrics["mem_cached (GB) by torch on {:10s}".format(torch.cuda.get_device_name(device))] = np.nan
             self.sysmetrics_start(sysmetrics_interval)
+        else:
+            print("NOT logging sysmetrics")
 
     def __getattr__(self, attr):
         """delegate all undefined method requests to objects of
@@ -202,7 +213,7 @@ class CombinedLogger(object):
             if not name in self.times.keys():
                 self.times[name] = {"total": 0, "last":0}
             elif self.times[name]["toggle"] == toggle:
-                print("restarting running stopwatch")
+                self.info("restarting running stopwatch")
             self.times[name]["last"] = time.time()
             self.times[name]["toggle"] = toggle
             return time.time()
@@ -229,6 +240,8 @@ class CombinedLogger(object):
             return times
 
         else:
+            if self.times[name]["toggle"]:
+                self.time(name, toggle=False)
             time = self.times[name][kind]
             if format == "hms":
                 m, s = divmod(time, 60)
@@ -280,8 +293,9 @@ class CombinedLogger(object):
     def sysmetrics_loop(self):
         try:
             os.nice(-19)
+            self.info("Logging system metrics with superior process priority.")
         except:
-            print("System-metrics logging has no superior process priority.")
+            self.info("Logging system metrics WITHOUT superior process priority.")
         while True:
             metrics = self.sysmetrics_update()
             self.sysmetrics2tboard(metrics, global_step=metrics["rel_time"])
@@ -289,7 +303,7 @@ class CombinedLogger(object):
             time.sleep(self.sysmetrics_interval)
             
     def sysmetrics_start(self, interval):
-        if interval is not None:
+        if interval is not None and interval>0:
             self.sysmetrics_interval = interval
             self.gpu_logger = Nvidia_GPU_Logger()
             self.sysmetrics_start_time = time.time()
@@ -298,7 +312,6 @@ class CombinedLogger(object):
             self.thread.start()
 
     def sysmetrics_save(self, out_file):
-
         self.sysmetrics.to_pickle(out_file)
 
 
@@ -382,21 +395,11 @@ class CombinedLogger(object):
         self.pylogger.handlers = []
         del self.pylogger
 
-def get_logger(exp_dir, server_env=False, sysmetrics_interval=2):
+def get_logger(exp_dir, server_env=False, sysmetrics_interval=-1):
     log_dir = os.path.join(exp_dir, "logs")
-    logger = CombinedLogger('medical_detection',  os.path.join(log_dir, "tboard"), server_env=server_env,
+    logger = CombinedLogger('Reg R-CNN', os.path.join(log_dir, "tboard"), server_env=server_env,
                             sysmetrics_interval=sysmetrics_interval)
-    logger.setLevel(logging.DEBUG)
-    log_file = os.path.join(log_dir, 'exec.log')
-
-    logger.addHandler(logging.FileHandler(log_file))
-    if not server_env:
-        logger.addHandler(ColorHandler())
-    else:
-        logger.addHandler(logging.StreamHandler())
-    logger.pylogger.propagate = False
-    print('Logging to {}'.format(log_file))
-
+    print("logging to {}".format(logger.log_file))
     return logger
 
 def prep_exp(dataset_path, exp_path, server_env, use_stored_settings=True, is_training=True):

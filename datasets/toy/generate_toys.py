@@ -374,7 +374,7 @@ class ToyGenerator(object):
 
 if __name__ == '__main__':
     import configs as cf
-    cf = cf.configs()
+    cf = cf.Configs()
     total_stime = time.time()
 
     toy_gen = ToyGenerator(cf)

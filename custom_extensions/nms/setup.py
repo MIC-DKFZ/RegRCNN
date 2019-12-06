@@ -16,3 +16,4 @@ setup(name='nms_extension',
       ext_modules=[cpp_extension.CUDAExtension('nms_extension', [str(dir_/'src/nms_interface.cpp'), str(dir_/'src/nms.cu')])],
       cmdclass={'build_ext': cpp_extension.BuildExtension}
       )
+

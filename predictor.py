@@ -899,11 +899,13 @@ class Predictor:
                     if i in plot_batches and (not self.patched_patient or 'patient_data' in batch.keys()):
                         try:
                             # view qualitative results of random test case
+                            self.logger.time("test_plot")
                             out_file = os.path.join(self.example_plot_dir,
                                                     'batch_example_test_{}_rank_{}.png'.format(self.cf.fold, rank_ix))
                             plg.view_batch(self.cf, batch, res_dict=results_dict, out_file=out_file,
                                            show_seg_ids='dice' in self.cf.metrics,
                                            has_colorchannels=self.cf.has_colorchannels, show_gt_labels=True)
+                            self.logger.info("generated example test plot {} in {:.2f}s".format(os.path.basename(out_file), self.logger.time("test_plot")))
                         except Exception as e:
                             self.logger.info("WARNING: error in view_batch: {}".format(e))
 

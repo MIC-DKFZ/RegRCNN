@@ -75,8 +75,9 @@ class Configs(DefaultConfigs):
         }
 
         # shape choices: 'cylinder', 'block'
-        self.pp_classes = [Label(1,      'cylinder',   'cylinder',     ((6,6,1),(40,40,8)),  (*self.blue, 1.),      "radius_2d", (), ('radius_calib',)),
-                                  #Label(2,      'block',      'block',        ((6,6,1),(40,40,8)),  (*self.aubergine,1.),  "radii_2d", (), ('radius_calib',))
+        #                        id,    name,       shape,      radius,                 color,              regression,     ambiguities,    gt_distortion
+        self.pp_classes = [Label(1,     'cylinder', 'cylinder', ((6,6,1),(40,40,8)),    (*self.blue, 1.),   "radius_2d",    (),             ()),
+                           #Label(2,      'block',      'block',        ((6,6,1),(40,40,8)),  (*self.aubergine,1.),  "radii_2d", (), ('radius_calib',))
             ]
 
 
@@ -84,9 +85,8 @@ class Configs(DefaultConfigs):
         #         I/O           #
         #########################
 
-        #self.data_sourcedir = '/mnt/HDD2TB/Documents/data/toy/cyl1ps_dev'
-        self.data_sourcedir = '/mnt/HDD2TB/Documents/data/toy/cyl1ps_exact'
-        #self.data_sourcedir = '/mnt/HDD2TB/Documents/data/toy/cyl1ps_ambig_beyond_bin'
+        self.data_sourcedir = '/mnt/HDD2TB/Documents/data/toy/cyl1ps_dev'
+        #self.data_sourcedir = '/mnt/HDD2TB/Documents/data/toy/cyl1ps_exact'
 
         if server_env:
             #self.data_sourcedir = '/datasets/data_ramien/toy/cyl1ps_exact_npz'
@@ -98,7 +98,7 @@ class Configs(DefaultConfigs):
         self.info_df_name = 'info_df.pickle'
 
         # one out of ['mrcnn', 'retina_net', 'retina_unet', 'detection_unet', 'ufrcnn', 'detection_fpn'].
-        self.model = 'retina_net'
+        self.model = 'detection_unet'
         self.model_path = 'models/{}.py'.format(self.model if not 'retina' in self.model else 'retina_net')
         self.model_path = os.path.join(self.source_dir, self.model_path)
 
@@ -344,7 +344,7 @@ class Configs(DefaultConfigs):
 
       # loss mode: either weighted cross entropy ('wce'), batch-wise dice loss ('dice), or the sum of both ('dice_wce')
       self.seg_loss_mode = 'wce'
-      self.wce_weights = [1] * self.num_seg_classes if 'dice' in self.seg_loss_mode else [0.1, 1, 1]
+      self.wce_weights = [1] * self.num_seg_classes if 'dice' in self.seg_loss_mode else [0.1, 1]
 
       self.fp_dice_weight = 1 if self.dim == 2 else 1
       # if <1, false positive predictions in foreground are penalized less.
@@ -365,7 +365,7 @@ class Configs(DefaultConfigs):
 
       # loss mode: either weighted cross entropy ('wce'), batch-wise dice loss ('dice), or the sum of both ('dice_wce')
       self.seg_loss_mode = 'wce'
-      self.wce_weights = [1] * self.num_seg_classes if 'dice' in self.seg_loss_mode else [0.1, 1, 1]
+      self.wce_weights = [1] * self.num_seg_classes if 'dice' in self.seg_loss_mode else [0.1, 1]
       # if <1, false positive predictions in foreground are penalized less.
       self.fp_dice_weight = 1 if self.dim == 2 else 1
 

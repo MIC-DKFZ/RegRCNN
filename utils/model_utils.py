@@ -18,22 +18,14 @@
 Parts are based on https://github.com/multimodallearning/pytorch-mask-rcnn
 published under MIT license.
 """
-import time
 import warnings
 warnings.filterwarnings('ignore', '.*From scipy 0.13.0, the output shape of zoom()*')
 
 import numpy as np
-import math
 import scipy.misc
 import scipy.ndimage
 from scipy.ndimage.measurements import label as lb
 import torch
-from torch.autograd import Variable
-
-# from cuda_functions.nms_2D.pth_nms import nms_gpu as nms_2D
-# from cuda_functions.nms_3D.pth_nms import nms_gpu as nms_3D
-# from cuda_functions.roi_align_2D.roi_align.crop_and_resize import CropAndResizeFunction as ra2D
-# from cuda_functions.roi_align_3D.roi_align.crop_and_resize import CropAndResizeFunction as ra3D
 
 from custom_extensions.nms import nms
 from custom_extensions.roi_align import roi_align
@@ -73,7 +65,6 @@ def get_one_hot_encoding(y, n_classes):
     return y_ohe
 
 def dice_per_batch_inst_and_class(pred, y, n_classes, convert_to_ohe=True, smooth=1e-8):
-    #actually per batch_instance not batch
     '''
     computes dice scores per batch instance and class.
     :param pred: prediction array of shape (b, 1, y, x, (z)) (e.g. softmax prediction with argmax over dim 1)
@@ -482,7 +473,7 @@ def pyramid_roi_align(feature_maps, rois, pool_size, pyramid_levels, dim):
     # Equation 1 in https://arxiv.org/abs/1612.03144. Account for
     # the fact that our coordinates are normalized here.
     # divide sqrt(h*w) by 1 instead image_area.
-    roi_level = (4 + log2(torch.sqrt(h*w))).round().int().clamp(pyramid_levels[0], pyramid_levels[-1])
+    roi_level = (4 + torch.log2(torch.sqrt(h*w))).round().int().clamp(pyramid_levels[0], pyramid_levels[-1])
     # if Pyramid contains additional level P6, adapt the roi_level assignment accordingly.
     if len(pyramid_levels) == 5:
         roi_level[h*w > 0.65] = 5
@@ -1093,7 +1084,7 @@ def bbox_overlaps_2D(boxes1, boxes2):
     y2 = torch.min(b1_y2, b2_y2)[:, 0]
     x2 = torch.min(b1_x2, b2_x2)[:, 0]
     #--> expects x1<x2 & y1<y2
-    zeros = Variable(torch.zeros(y1.size()[0]), requires_grad=False)
+    zeros = torch.zeros(y1.size()[0], requires_grad=False)
     if y1.is_cuda:
         zeros = zeros.cuda()
     intersection = torch.max(x2 - x1, zeros) * torch.max(y2 - y1, zeros)
@@ -1132,7 +1123,7 @@ def bbox_overlaps_3D(boxes1, boxes2):
     x2 = torch.min(b1_x2, b2_x2)[:, 0]
     z1 = torch.max(b1_z1, b2_z1)[:, 0]
     z2 = torch.min(b1_z2, b2_z2)[:, 0]
-    zeros = Variable(torch.zeros(y1.size()[0]), requires_grad=False)
+    zeros = torch.zeros(y1.size()[0], requires_grad=False)
     if y1.is_cuda:
         zeros = zeros.cuda()
     intersection = torch.max(x2 - x1, zeros) * torch.max(y2 - y1, zeros) * torch.max(z2 - z1, zeros)
@@ -1392,15 +1383,6 @@ def unique1d(tensor):
         first_element = first_element.cuda()
     unique_bool = torch.cat((first_element, unique_bool), dim=0)
     return tensor[unique_bool.data]
-
-
-def log2(x):
-    """Implementatin of Log2. Pytorch doesn't have a native implementation."""
-    ln2 = Variable(torch.log(torch.FloatTensor([2.0])), requires_grad=False)
-    if x.is_cuda:
-        ln2 = ln2.cuda()
-    return torch.log(x) / ln2
-
 
 
 def intersect1d(tensor1, tensor2):

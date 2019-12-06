@@ -42,8 +42,7 @@ for msg in ["Attempting to set identical bottom==top results",
 def train(cf, logger):
     """
     performs the training routine for a given fold. saves plots and selected parameters to the experiment dir
-    specified in the configs.
-    
+    specified in the configs. logs to file and tensorboard.
     """
     logger.info('performing training in {}D over fold {} on experiment {} with model {}'.format(
         cf.dim, cf.fold, cf.exp_dir, cf.model))
@@ -96,9 +95,9 @@ def train(cf, logger):
             optimizer.zero_grad()
             results_dict['torch_loss'].backward()
             if cf.clip_norm:
-                torch.nn.utils.clip_grad_norm_(net.parameters(), cf.clip_norm, norm_type=2) #gradient clipping
+                torch.nn.utils.clip_grad_norm_(net.parameters(), cf.clip_norm, norm_type=2) # gradient clipping
             optimizer.step()
-            train_results_list.append(({k:v for k,v in results_dict.items() if k != "seg_preds"}, batch["pid"])) #slim res dict
+            train_results_list.append(({k:v for k,v in results_dict.items() if k != "seg_preds"}, batch["pid"])) # slim res dict
             if not cf.server_env:
                 print("\rFinished training batch " +
                       "{}/{} in {:.1f}s ({:.2f}/{:.2f} forw load/net, {:.2f} backw).".format(i+1, cf.num_train_batches,
@@ -116,16 +115,15 @@ def train(cf, logger):
             logger.time("train_plot")
             plg.view_batch(cf, batch, results_dict, has_colorchannels=cf.has_colorchannels, show_gt_labels=True,
                            out_file=os.path.join(cf.plot_dir, 'batch_example_train_{}.png'.format(cf.fold)))
-            logger.info("generated train-example plot in {:.2f}s".format(logger.get_time("train_plot", reset=True)))
+            logger.info("generated train-example plot in {:.2f}s".format(logger.time("train_plot")))
 
 
         logger.time("evals")
         _, monitor_metrics['train'] = train_evaluator.evaluate_predictions(train_results_list, monitor_metrics['train'])
-        #np_loss, torch_loss = train_loss_running_mean / cf.num_train_batches, monitor_metrics['train']["loss"][-1]
-        #assert np_loss/torch_loss-1<0.005, "{} vs {}".format(np_loss, torch_loss)
         logger.time("evals")
         logger.time("train_epoch", toggle=False)
         del train_results_list
+
         #----------- validation ------------
         logger.info('starting validation in mode {}.'.format(cf.val_mode))
         logger.time("val_epoch")
@@ -150,11 +148,11 @@ def train(cf, logger):
             print()
 
             #------------ val eval -------------
-            logger.time("val_plot")
             if (epoch - 1) % cf.plot_frequency == 0:
+                logger.time("val_plot")
                 plg.view_batch(cf, batch, results_dict, has_colorchannels=cf.has_colorchannels, show_gt_labels=True,
                                out_file=os.path.join(cf.plot_dir, 'batch_example_val_{}.png'.format(cf.fold)))
-            logger.time("val_plot")
+                logger.info("generated val plot in {:.2f}s".format(logger.time("val_plot")))
 
             logger.time("evals")
             _, monitor_metrics['val'] = val_evaluator.evaluate_predictions(val_results_list, monitor_metrics['val'])
@@ -171,7 +169,7 @@ def train(cf, logger):
                 epoch, cf.num_epochs, logger.get_time("train_epoch")+logger.time("val_epoch"), logger.get_time("train_epoch"),
                 logger.get_time("train_epoch", reset=True)/cf.num_train_batches, logger.get_time("val_epoch"),
                 logger.get_time("val_epoch", reset=True)/batch_gen["n_val"]))
-            logger.info("time for evals: {:.2f}s, val plot {:.2f}s".format(logger.get_time("evals", reset=True), logger.get_time("val_plot", reset=True)))
+            logger.info("time for evals: {:.2f}s".format(logger.get_time("evals", reset=True)))
 
         #-------------- scheduling -----------------
         if not cf.dynamic_lr_scheduling:
@@ -201,11 +199,7 @@ def test(cf, logger, max_fold=None):
         test_evaluator.evaluate_predictions(test_results_list)
         test_evaluator.score_test_df(max_fold=max_fold)
 
-    mins, secs = divmod(logger.get_time("test_fold"), 60)
-    h, mins = divmod(mins, 60)
-    t = "{:d}h:{:02d}m:{:02d}s".format(int(h), int(mins), int(secs))
-
-    logger.info('Testing of fold {} took {}.'.format(cf.fold, t))
+    logger.info('Testing of fold {} took {}.'.format(cf.fold, logger.get_time("test_fold", reset=True, format="hms")))
 
 
 if __name__ == '__main__':
@@ -234,7 +228,7 @@ if __name__ == '__main__':
 
     if args.mode == 'create_exp':
         cf = utils.prep_exp(args.dataset_name, args.exp_dir, args.server_env, use_stored_settings=False)
-        logger = utils.get_logger(cf.exp_dir, cf.server_env)
+        logger = utils.get_logger(cf.exp_dir, cf.server_env, -1)
         logger.info('created experiment directory at {}'.format(args.exp_dir))
 
     elif args.mode == 'train' or args.mode == 'train_test':
@@ -251,7 +245,7 @@ if __name__ == '__main__':
         if args.data_dest is not None:
             cf.data_dest = args.data_dest
             
-        logger = utils.get_logger(cf.exp_dir, cf.server_env)
+        logger = utils.get_logger(cf.exp_dir, cf.server_env, cf.sysmetrics_interval)
         data_loader = utils.import_module('data_loader', os.path.join(args.dataset_name, 'data_loader.py'))
         model = utils.import_module('model', cf.model_path)
         logger.info("loaded model from {}".format(cf.model_path))
@@ -303,7 +297,7 @@ if __name__ == '__main__':
         """ analyse already saved predictions.
         """
         cf = utils.prep_exp(args.dataset_name, args.exp_dir, args.server_env, use_stored_settings=True, is_training=False)
-        logger = utils.get_logger(cf.exp_dir, cf.server_env)
+        logger = utils.get_logger(cf.exp_dir, cf.server_env, -1)
 
         if cf.held_out_test_set and not cf.eval_test_fold_wise:
             predictor = Predictor(cf, net=None, logger=logger, mode='analysis')

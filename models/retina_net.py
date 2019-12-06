@@ -20,8 +20,6 @@ import utils.model_utils as mutils
 import utils.exp_utils as utils
 import sys
 sys.path.append('../')
-# from cuda_functions.nms_2D.pth_nms import nms_gpu as nms_2D
-# from cuda_functions.nms_3D.pth_nms import nms_gpu as nms_3D
 from custom_extensions.nms import nms
 
 import numpy as np
@@ -329,10 +327,6 @@ def refine_detections(anchors, probs, deltas, regressions, batch_ixs, cf):
             ix_rois = ix_rois[order, :]
             ix_scores = ix_scores
 
-            # if cf.dim == 2:
-            #     class_keep = nms_2D(torch.cat((ix_rois, ix_scores.unsqueeze(1)), dim=1), cf.detection_nms_threshold)
-            # else:
-            #     class_keep = nms_3D(torch.cat((ix_rois, ix_scores.unsqueeze(1)), dim=1), cf.detection_nms_threshold)
             class_keep = nms.nms(ix_rois, ix_scores, cf.detection_nms_threshold)
             # map indices back.
             class_keep = keep[bixs[ixs[order[class_keep]]]]

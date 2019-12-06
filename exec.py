@@ -271,7 +271,7 @@ if __name__ == '__main__':
         cf = utils.prep_exp(args.dataset_name, args.exp_dir, args.server_env, use_stored_settings=True, is_training=False)
         if args.data_dest is not None:
             cf.data_dest = args.data_dest
-        logger = utils.get_logger(cf.exp_dir, cf.server_env)
+        logger = utils.get_logger(cf.exp_dir, cf.server_env, cf.sysmetrics_interval)
         data_loader = utils.import_module('data_loader', os.path.join(args.dataset_name, 'data_loader.py'))
         model = utils.import_module('model', cf.model_path)
         logger.info("loaded model from {}".format(cf.model_path))

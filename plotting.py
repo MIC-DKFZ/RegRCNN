@@ -275,6 +275,7 @@ def plot_prediction_hist(cf, spec_df, outfile, title=None, fs=11, ax=None):
             IO_safe(plt.savefig, fname=outfile, _raise=False)
         else:
             plt.savefig(outfile)
+            pass
         plt.close()
 
 def plot_wbc_n_missing(cf, df, outfile, fs=11, ax=None):

@@ -27,8 +27,8 @@ import scipy.ndimage
 from scipy.ndimage.measurements import label as lb
 import torch
 
-from custom_extensions.nms import nms
-from custom_extensions.roi_align import roi_align
+#from custom_extensions.nms import nms
+#from custom_extensions.roi_align import roi_align
 
 
 ############################################################

@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-#import plotting as plg
+# import plotting as plg
 
 import sys
 import os
@@ -45,14 +45,17 @@ def import_module(name, path):
     spec.loader.exec_module(module)
     return module
 
+
 def save_obj(obj, name):
     """Pickle a python object."""
     with open(name + '.pkl', 'wb') as f:
         pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
 
+
 def load_obj(file_path):
     with open(file_path, 'rb') as handle:
         return pickle.load(handle)
+
 
 def IO_safe(func, *args, _tries=5, _raise=True, **kwargs):
     """ Wrapper calling function func with arguments args and keyword arguments kwargs to catch input/output errors
@@ -70,8 +73,11 @@ def IO_safe(func, *args, _tries=5, _raise=True, **kwargs):
             if _raise:
                 raise e
             else:
-                print("After attempting execution {} time{}, following error occurred:\n{}".format(_try+1,"" if _try==0 else "s", e))
+                print("After attempting execution {} time{}, following error occurred:\n{}".format(_try + 1,
+                                                                                                   "" if _try == 0 else "s",
+                                                                                                   e))
                 continue
+
 
 def query_nvidia_gpu(device_id, d_keyword=None, no_units=False):
     """
@@ -83,14 +89,14 @@ def query_nvidia_gpu(device_id, d_keyword=None, no_units=False):
     if d_keyword is not None:
         cmd += ['-d', d_keyword]
     outp = subprocess.check_output(cmd).strip().decode('utf-8').split("\n")
-    outp = [x for x in outp if len(x)>0]
-    headers = [ix for ix, item in enumerate(outp) if len(item.split(":"))==1] + [len(outp)]
+    outp = [x for x in outp if len(x) > 0]
+    headers = [ix for ix, item in enumerate(outp) if len(item.split(":")) == 1] + [len(outp)]
 
     out_dict = {}
     for lix, hix in enumerate(headers[:-1]):
         head = outp[hix].strip().replace(" ", "_").lower()
         out_dict[head] = {}
-        for lix2 in range(hix, headers[lix+1]):
+        for lix2 in range(hix, headers[lix + 1]):
             try:
                 key, val = [x.strip().lower() for x in outp[lix2].split(":")]
                 if no_units:
@@ -101,11 +107,13 @@ def query_nvidia_gpu(device_id, d_keyword=None, no_units=False):
 
     return out_dict
 
+
 class CombinedPrinter(object):
     """combined print function.
     prints to logger and/or file if given, to normal print if non given.
 
     """
+
     def __init__(self, logger=None, file=None):
 
         if logger is None and file is None:
@@ -121,6 +129,7 @@ class CombinedPrinter(object):
         for fct in self.out:
             fct(string)
 
+
 class Nvidia_GPU_Logger(object):
     def __init__(self):
         self.count = None
@@ -133,10 +142,10 @@ class Nvidia_GPU_Logger(object):
         cmd[-1] = 'UsedDedicatedGPUMemory'
         gpu_used_mem = subprocess.check_output(cmd).strip().decode('utf-8')
         current_vals = {"gpu_mem_alloc": gpu_used_mem, "gpu_graphics_util": int(gpu_util['graphics']),
-                             "gpu_mem_util": gpu_util['memory'], "time": time.time()}
+                        "gpu_mem_util": gpu_util['memory'], "time": time.time()}
         return current_vals
 
-    def loop(self):
+    def loop(self, interval):
         i = 0
         while True:
             self.get_vals()
@@ -157,32 +166,44 @@ class Nvidia_GPU_Logger(object):
             thread.daemon = True
             thread.start()
 
+class DummyLogger():
+    def __init__(self):
+        pass
+    def info(self, *args):
+        print(*args)
+        return None
+
 class CombinedLogger(object):
     """Combine console and tensorboard logger and record system metrics.
     """
-    def __init__(self, name, log_dir, server_env=True, fold="", sysmetrics_interval=2):
-        self.pylogger = logging.getLogger(name)
+
+    def __init__(self, name, log_dir, server_env=True, fold="", sysmetrics_interval=-1):
+        self.pylogger = DummyLogger()#logging.getLogger(name)
         self.tboard = SummaryWriter(log_dir=log_dir)
         self.times = {}
         self.fold = fold
 
-        self.pylogger.setLevel(logging.DEBUG)
-        self.log_file = os.path.join(log_dir, 'exec.log')
-        self.pylogger.addHandler(logging.FileHandler(self.log_file))
-        if not server_env:
-            self.pylogger.addHandler(ColorHandler())
-        else:
-            self.pylogger.addHandler(logging.StreamHandler())
-        self.pylogger.propagate = False
+        # self.pylogger.setLevel(logging.DEBUG)
+        # self.log_file = os.path.join(log_dir, 'exec.log')
+        # self.pylogger.addHandler(logging.FileHandler(self.log_file))
+        # if not server_env:
+        #     self.pylogger.addHandler(ColorHandler())
+        # else:
+        #     self.pylogger.addHandler(logging.StreamHandler())
+        # self.pylogger.propagate = False
 
         # monitor system metrics (cpu, mem, ...)
-        if not server_env and sysmetrics_interval>0:
-            self.sysmetrics = pd.DataFrame(columns=["global_step", "rel_time", r"CPU (%)", "mem_used (GB)", r"mem_used (%)",
-                                                    r"swap_used (GB)", r"gpu_utilization (%)"], dtype="float16")
+        if not server_env and sysmetrics_interval > 0:
+            self.sysmetrics = pd.DataFrame(
+                columns=["global_step", "rel_time", r"CPU (%)", "mem_used (GB)", r"mem_used (%)",
+                         r"swap_used (GB)", r"gpu_utilization (%)"], dtype="float16")
             for device in range(torch.cuda.device_count()):
-                self.sysmetrics["mem_allocd (GB) by torch on {:10s}".format(torch.cuda.get_device_name(device))] = np.nan
-                self.sysmetrics["mem_cached (GB) by torch on {:10s}".format(torch.cuda.get_device_name(device))] = np.nan
+                self.sysmetrics[
+                    "mem_allocd (GB) by torch on {:10s}".format(torch.cuda.get_device_name(device))] = np.nan
+                self.sysmetrics[
+                    "mem_cached (GB) by torch on {:10s}".format(torch.cuda.get_device_name(device))] = np.nan
             self.sysmetrics_start(sysmetrics_interval)
+            pass
         else:
             print("NOT logging sysmetrics")
 
@@ -194,8 +215,8 @@ class CombinedLogger(object):
         for obj in [self.pylogger, self.tboard]:
             if attr in dir(obj):
                 return getattr(obj, attr)
-        raise AttributeError("CombinedLogger has no attribute {}".format(attr))
-
+        print("logger attr not found")
+        #raise AttributeError("CombinedLogger has no attribute {}".format(attr))
 
     def time(self, name, toggle=None):
         """record time-spans as with a stopwatch.
@@ -211,7 +232,7 @@ class CombinedLogger(object):
 
         if toggle:
             if not name in self.times.keys():
-                self.times[name] = {"total": 0, "last":0}
+                self.times[name] = {"total": 0, "last": 0}
             elif self.times[name]["toggle"] == toggle:
                 self.info("restarting running stopwatch")
             self.times[name]["last"] = time.time()
@@ -220,7 +241,7 @@ class CombinedLogger(object):
         else:
             if toggle == self.times[name]["toggle"]:
                 self.info("WARNING: tried to stop stopped stop watch: {}.".format(name))
-            self.times[name]["last"] = time.time()-self.times[name]["last"]
+            self.times[name]["last"] = time.time() - self.times[name]["last"]
             self.times[name]["total"] += self.times[name]["last"]
             self.times[name]["toggle"] = toggle
             return self.times[name]["last"]
@@ -260,21 +281,24 @@ class CombinedLogger(object):
         else:
             del self.times[name]
 
-
     def sysmetrics_update(self, global_step=None):
         if global_step is None:
             global_step = time.strftime("%x_%X")
-        mem = psutil.virtual_memory()     
-        mem_used = (mem.total-mem.available)
+        mem = psutil.virtual_memory()
+        mem_used = (mem.total - mem.available)
         gpu_vals = self.gpu_logger.get_vals()
-        rel_time = time.time()-self.sysmetrics_start_time
+        rel_time = time.time() - self.sysmetrics_start_time
         self.sysmetrics.loc[len(self.sysmetrics)] = [global_step, rel_time,
-                            psutil.cpu_percent(), mem_used/1024**3, mem_used/mem.total*100,
-                            psutil.swap_memory().used/1024**3, int(gpu_vals['gpu_graphics_util']),
-                            *[torch.cuda.memory_allocated(d)/1024**3 for d in range(torch.cuda.device_count())],
-                            *[torch.cuda.memory_cached(d)/1024**3 for d in range(torch.cuda.device_count())]
-                            ]
-        return self.sysmetrics.loc[len(self.sysmetrics)-1].to_dict()
+                                                     psutil.cpu_percent(), mem_used / 1024 ** 3,
+                                                     mem_used / mem.total * 100,
+                                                     psutil.swap_memory().used / 1024 ** 3,
+                                                     int(gpu_vals['gpu_graphics_util']),
+                                                     *[torch.cuda.memory_allocated(d) / 1024 ** 3 for d in
+                                                       range(torch.cuda.device_count())],
+                                                     *[torch.cuda.memory_cached(d) / 1024 ** 3 for d in
+                                                       range(torch.cuda.device_count())]
+                                                     ]
+        return self.sysmetrics.loc[len(self.sysmetrics) - 1].to_dict()
 
     def sysmetrics2tboard(self, metrics=None, global_step=None, suptitle=None):
         tag = "per_time"
@@ -284,11 +308,12 @@ class CombinedLogger(object):
 
         if suptitle is not None:
             suptitle = str(suptitle)
-        elif self.fold!="":
-            suptitle = "Fold_"+str(self.fold)
+        elif self.fold != "":
+            suptitle = "Fold_" + str(self.fold)
         if suptitle is not None:
-            self.tboard.add_scalars(suptitle+"/System_Metrics/"+tag, {k:v for (k,v) in metrics.items() if (k!="global_step"
-                                                        and k!="rel_time")}, global_step)
+            self.tboard.add_scalars(suptitle + "/System_Metrics/" + tag,
+                                    {k: v for (k, v) in metrics.items() if (k != "global_step"
+                                                                            and k != "rel_time")}, global_step)
 
     def sysmetrics_loop(self):
         try:
@@ -299,11 +324,11 @@ class CombinedLogger(object):
         while True:
             metrics = self.sysmetrics_update()
             self.sysmetrics2tboard(metrics, global_step=metrics["rel_time"])
-            #print("thread alive", self.thread.is_alive())
+            # print("thread alive", self.thread.is_alive())
             time.sleep(self.sysmetrics_interval)
-            
+
     def sysmetrics_start(self, interval):
-        if interval is not None and interval>0:
+        if interval is not None and interval > 0:
             self.sysmetrics_interval = interval
             self.gpu_logger = Nvidia_GPU_Logger()
             self.sysmetrics_start_time = time.time()
@@ -314,28 +339,27 @@ class CombinedLogger(object):
     def sysmetrics_save(self, out_file):
         self.sysmetrics.to_pickle(out_file)
 
-
     def metrics2tboard(self, metrics, global_step=None, suptitle=None):
         """
         :param metrics: {'train': dataframe, 'val':df}, df as produced in
             evaluator.py.evaluate_predictions
         """
-        #print("metrics", metrics)
+        # print("metrics", metrics)
         if global_step is None:
-            global_step = len(metrics['train'][list(metrics['train'].keys())[0]])-1
+            global_step = len(metrics['train'][list(metrics['train'].keys())[0]]) - 1
         if suptitle is not None:
             suptitle = str(suptitle)
         else:
-            suptitle = "Fold_"+str(self.fold)
+            suptitle = "Fold_" + str(self.fold)
 
         for key in ['train', 'val']:
-            #series = {k:np.array(v[-1]) for (k,v) in metrics[key].items() if not np.isnan(v[-1]) and not 'Bin_Stats' in k}
+            # series = {k:np.array(v[-1]) for (k,v) in metrics[key].items() if not np.isnan(v[-1]) and not 'Bin_Stats' in k}
             loss_series = {}
             unc_series = {}
             bin_stat_series = {}
             mon_met_series = {}
-            for tag,val in metrics[key].items():
-                val = val[-1] #maybe remove list wrapping, recording in evaluator?
+            for tag, val in metrics[key].items():
+                val = val[-1]  # maybe remove list wrapping, recording in evaluator?
                 if 'bin_stats' in tag.lower() and not np.isnan(val):
                     bin_stat_series["{}".format(tag.split("/")[-1])] = val
                 elif 'uncertainty' in tag.lower() and not np.isnan(val):
@@ -345,55 +369,55 @@ class CombinedLogger(object):
                 elif not np.isnan(val):
                     mon_met_series["{}".format(tag)] = val
 
-            self.tboard.add_scalars(suptitle+"/Binary_Statistics/{}".format(key), bin_stat_series, global_step)
+            self.tboard.add_scalars(suptitle + "/Binary_Statistics/{}".format(key), bin_stat_series, global_step)
             self.tboard.add_scalars(suptitle + "/Uncertainties/{}".format(key), unc_series, global_step)
             self.tboard.add_scalars(suptitle + "/Losses/{}".format(key), loss_series, global_step)
-            self.tboard.add_scalars(suptitle+"/Monitor_Metrics/{}".format(key), mon_met_series, global_step)
+            self.tboard.add_scalars(suptitle + "/Monitor_Metrics/{}".format(key), mon_met_series, global_step)
         self.tboard.add_scalars(suptitle + "/Learning_Rate", metrics["lr"], global_step)
         return
-      
+
     def batchImgs2tboard(self, batch, results_dict, cmap, boxtype2color, img_bg=False, global_step=None):
         raise NotImplementedError("not up-to-date, problem with importing plotting-file, torchvision dependency.")
-        if len(batch["seg"].shape)==5: #3D imgs
+        if len(batch["seg"].shape) == 5:  # 3D imgs
             slice_ix = np.random.randint(batch["seg"].shape[-1])
-            seg_gt = plg.to_rgb(batch['seg'][:,0,:,:,slice_ix], cmap)
-            seg_pred = plg.to_rgb(results_dict['seg_preds'][:,0,:,:,slice_ix], cmap)
-            
-            mod_img = plg.mod_to_rgb(batch["data"][:,0,:,:,slice_ix]) if img_bg else None
-            
-        elif len(batch["seg"].shape)==4:
-            seg_gt = plg.to_rgb(batch['seg'][:,0,:,:], cmap)
-            seg_pred = plg.to_rgb(results_dict['seg_preds'][:,0,:,:], cmap)
-            mod_img = plg.mod_to_rgb(batch["data"][:,0]) if img_bg else None
+            seg_gt = plg.to_rgb(batch['seg'][:, 0, :, :, slice_ix], cmap)
+            seg_pred = plg.to_rgb(results_dict['seg_preds'][:, 0, :, :, slice_ix], cmap)
+
+            mod_img = plg.mod_to_rgb(batch["data"][:, 0, :, :, slice_ix]) if img_bg else None
+
+        elif len(batch["seg"].shape) == 4:
+            seg_gt = plg.to_rgb(batch['seg'][:, 0, :, :], cmap)
+            seg_pred = plg.to_rgb(results_dict['seg_preds'][:, 0, :, :], cmap)
+            mod_img = plg.mod_to_rgb(batch["data"][:, 0]) if img_bg else None
         else:
             raise Exception("batch content has wrong format: {}".format(batch["seg"].shape))
-        
-        #from here on only works in 2D
-        seg_gt = np.transpose(seg_gt, axes=(0,3,1,2)) #previous shp: b,x,y,c
-        seg_pred = np.transpose(seg_pred, axes=(0,3,1,2))
-        
-        
+
+        # from here on only works in 2D
+        seg_gt = np.transpose(seg_gt, axes=(0, 3, 1, 2))  # previous shp: b,x,y,c
+        seg_pred = np.transpose(seg_pred, axes=(0, 3, 1, 2))
+
         seg = np.concatenate((seg_gt, seg_pred), axis=0)
         # todo replace torchvision (tv) dependency
         seg = tv.utils.make_grid(torch.from_numpy(seg), nrow=2)
-        self.tboard.add_image("Batch seg, 1st col: gt, 2nd: pred.", seg, global_step=global_step)      
-        
+        self.tboard.add_image("Batch seg, 1st col: gt, 2nd: pred.", seg, global_step=global_step)
+
         if img_bg:
-            bg_img  = np.transpose(mod_img, axes=(0,3,1,2))
+            bg_img = np.transpose(mod_img, axes=(0, 3, 1, 2))
         else:
             bg_img = seg_gt
         box_imgs = plg.draw_boxes_into_batch(bg_img, results_dict["boxes"], boxtype2color)
         box_imgs = tv.utils.make_grid(torch.from_numpy(box_imgs), nrow=4)
         self.tboard.add_image("Batch bboxes", box_imgs, global_step=global_step)
-        
+
         return
 
-    def __del__(self): # otherwise might produce multiple prints e.g. in ipython console
-        for hdlr in self.pylogger.handlers:
-            hdlr.close()
+    def __del__(self):  # otherwise might produce multiple prints e.g. in ipython console
+        # for hdlr in self.pylogger.handlers:
+        #     hdlr.close()
+        # #self.pylogger.handlers = []
+        # del self.pylogger
         self.tboard.close()
-        self.pylogger.handlers = []
-        del self.pylogger
+
 
 def get_logger(exp_dir, server_env=False, sysmetrics_interval=-1):
     log_dir = os.path.join(exp_dir, "logs")
@@ -401,6 +425,7 @@ def get_logger(exp_dir, server_env=False, sysmetrics_interval=-1):
                             sysmetrics_interval=sysmetrics_interval)
     print("logging to {}".format(logger.log_file))
     return logger
+
 
 def prep_exp(dataset_path, exp_path, server_env, use_stored_settings=True, is_training=True):
     """
@@ -425,15 +450,19 @@ def prep_exp(dataset_path, exp_path, server_env, use_stored_settings=True, is_tr
             # in this mode, previously saved model and backbone need to be found in exp dir.
             if not os.path.isfile(os.path.join(exp_path, 'model.py')) or \
                     not os.path.isfile(os.path.join(exp_path, 'backbone.py')):
-                raise Exception("Selected use_stored_settings option but no model and/or backbone source files exist in exp dir.")
+                raise Exception(
+                    "Selected use_stored_settings option but no model and/or backbone source files exist in exp dir.")
             cf.model_path = os.path.join(exp_path, 'model.py')
             cf.backbone_path = os.path.join(exp_path, 'backbone.py')
-        else: # this case overwrites settings files in exp dir, i.e., default_configs, configs, backbone, model
+        else:  # this case overwrites settings files in exp dir, i.e., default_configs, configs, backbone, model
             if not os.path.exists(exp_path):
                 os.mkdir(exp_path)
             # run training with source code info and copy snapshot of model to exp_dir for later testing (overwrite scripts if exp_dir already exists.)
-            subprocess.call('cp {} {}'.format('default_configs.py', os.path.join(exp_path, 'default_configs.py')), shell=True)
-            subprocess.call('cp {} {}'.format(os.path.join(dataset_path, 'configs.py'), os.path.join(exp_path, 'configs.py')), shell=True)
+            subprocess.call('cp {} {}'.format('default_configs.py', os.path.join(exp_path, 'default_configs.py')),
+                            shell=True)
+            subprocess.call(
+                'cp {} {}'.format(os.path.join(dataset_path, 'configs.py'), os.path.join(exp_path, 'configs.py')),
+                shell=True)
             cf_file = import_module('cf_file', os.path.join(dataset_path, 'configs.py'))
             cf = cf_file.Configs(server_env)
             subprocess.call('cp {} {}'.format(cf.model_path, os.path.join(exp_path, 'model.py')), shell=True)
@@ -441,7 +470,7 @@ def prep_exp(dataset_path, exp_path, server_env, use_stored_settings=True, is_tr
             if os.path.isfile(os.path.join(exp_path, "fold_ids.pickle")):
                 subprocess.call('rm {}'.format(os.path.join(exp_path, "fold_ids.pickle")), shell=True)
 
-    else: # testing, use model and backbone stored in exp dir.
+    else:  # testing, use model and backbone stored in exp dir.
         cf_file = import_module('cf', os.path.join(exp_path, 'configs.py'))
         cf = cf_file.Configs(server_env)
         cf.model_path = os.path.join(exp_path, 'model.py')
@@ -461,6 +490,7 @@ def prep_exp(dataset_path, exp_path, server_env, use_stored_settings=True, is_tr
 
     return cf
 
+
 class ModelSelector:
     '''
     saves a checkpoint after each epoch as 'last_state' (can be loaded to continue interrupted training).
@@ -474,7 +504,6 @@ class ModelSelector:
         self.saved_epochs = [-1] * cf.save_n_models
         self.logger = logger
 
-
     def run_model_selection(self, net, optimizer, monitor_metrics, epoch):
         """rank epoch via weighted mean from self.cf.model_selection_criteria: {criterion : weight}
         :param net:
@@ -483,20 +512,21 @@ class ModelSelector:
         :param epoch:
         :return:
         """
-        crita = self.cf.model_selection_criteria #shorter alias
+        crita = self.cf.model_selection_criteria  # shorter alias
 
         non_nan_scores = {}
         for criterion in crita.keys():
-            #exclude first entry bc its dummy None entry
-            non_nan_scores[criterion] = [0 if (ii is None or np.isnan(ii)) else ii for ii in monitor_metrics['val'][criterion]][1:]
+            # exclude first entry bc its dummy None entry
+            non_nan_scores[criterion] = [0 if (ii is None or np.isnan(ii)) else ii for ii in
+                                         monitor_metrics['val'][criterion]][1:]
             n_epochs = len(non_nan_scores[criterion])
         epochs_scores = []
         for e_ix in range(n_epochs):
             epochs_scores.append(np.sum([weight * non_nan_scores[criterion][e_ix] for
-                                         criterion,weight in crita.items()])/len(crita.keys()))
+                                         criterion, weight in crita.items()]) / len(crita.keys()))
 
         # ranking of epochs according to model_selection_criterion
-        epoch_ranking = np.argsort(epochs_scores)[::-1] + 1 #epochs start at 1
+        epoch_ranking = np.argsort(epochs_scores)[::-1] + 1  # epochs start at 1
 
         # if set in configs, epochs < min_save_thresh are discarded from saving process.
         epoch_ranking = epoch_ranking[epoch_ranking >= self.cf.min_save_thresh]
@@ -504,7 +534,8 @@ class ModelSelector:
         # check if current epoch is among the top-k epchs.
         if epoch in epoch_ranking[:self.cf.save_n_models]:
             if self.cf.server_env:
-                IO_safe(torch.save, net.state_dict(), os.path.join(self.cf.fold_dir, '{}_best_params.pth'.format(epoch)))
+                IO_safe(torch.save, net.state_dict(),
+                        os.path.join(self.cf.fold_dir, '{}_best_params.pth'.format(epoch)))
                 # save epoch_ranking to keep info for inference.
                 IO_safe(np.save, os.path.join(self.cf.fold_dir, 'epoch_ranking'), epoch_ranking[:self.cf.save_n_models])
             else:
@@ -532,7 +563,6 @@ class ModelSelector:
 
 
 def load_checkpoint(checkpoint_path, net, optimizer):
-
     checkpoint = torch.load(checkpoint_path)
     net.load_state_dict(checkpoint['state_dict'])
     optimizer.load_state_dict(checkpoint['optimizer'])
@@ -545,15 +575,15 @@ def prepare_monitoring(cf):
     """
     metrics = {}
     # first entry for loss dict accounts for epoch starting at 1.
-    metrics['train'] = OrderedDict()# [(l_name, [np.nan]) for l_name in cf.losses_to_monitor] )
-    metrics['val'] = OrderedDict()# [(l_name, [np.nan]) for l_name in cf.losses_to_monitor] )
+    metrics['train'] = OrderedDict()  # [(l_name, [np.nan]) for l_name in cf.losses_to_monitor] )
+    metrics['val'] = OrderedDict()  # [(l_name, [np.nan]) for l_name in cf.losses_to_monitor] )
     metric_classes = []
     if 'rois' in cf.report_score_level:
         metric_classes.extend([v for k, v in cf.class_dict.items()])
         if hasattr(cf, "eval_bins_separately") and cf.eval_bins_separately:
             metric_classes.extend([v for k, v in cf.bin_dict.items()])
     if 'patient' in cf.report_score_level:
-        metric_classes.extend(['patient_'+cf.class_dict[cf.patient_class_of_interest]])
+        metric_classes.extend(['patient_' + cf.class_dict[cf.patient_class_of_interest]])
         if hasattr(cf, "eval_bins_separately") and cf.eval_bins_separately:
             metric_classes.extend(['patient_' + cf.bin_dict[cf.patient_bin_of_interest]])
     for cl in metric_classes:
@@ -612,8 +642,8 @@ class _AnsiColorizer(object):
         color = self._colors[color]
         self.stream.write('\x1b[%sm%s\x1b[0m' % (color, text))
 
-class ColorHandler(logging.StreamHandler):
 
+class ColorHandler(logging.StreamHandler):
 
     def __init__(self, stream=sys.stdout):
         super(ColorHandler, self).__init__(_AnsiColorizer(stream))
@@ -627,6 +657,3 @@ class ColorHandler(logging.StreamHandler):
         }
         color = msg_colors.get(record.levelno, "blue")
         self.stream.write(record.msg + "\n", color)
-
-
-

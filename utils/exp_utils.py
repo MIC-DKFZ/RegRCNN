@@ -166,31 +166,24 @@ class Nvidia_GPU_Logger(object):
             thread.daemon = True
             thread.start()
 
-class DummyLogger():
-    def __init__(self):
-        pass
-    def info(self, *args):
-        print(*args)
-        return None
-
 class CombinedLogger(object):
     """Combine console and tensorboard logger and record system metrics.
     """
 
-    def __init__(self, name, log_dir, server_env=True, fold="", sysmetrics_interval=-1):
-        self.pylogger = DummyLogger()#logging.getLogger(name)
+    def __init__(self, name, log_dir, server_env=True, fold="", sysmetrics_interval=2):
+        self.pylogger = logging.getLogger(name)
         self.tboard = SummaryWriter(log_dir=log_dir)
         self.times = {}
         self.fold = fold
 
-        # self.pylogger.setLevel(logging.DEBUG)
-        # self.log_file = os.path.join(log_dir, 'exec.log')
-        # self.pylogger.addHandler(logging.FileHandler(self.log_file))
-        # if not server_env:
-        #     self.pylogger.addHandler(ColorHandler())
-        # else:
-        #     self.pylogger.addHandler(logging.StreamHandler())
-        # self.pylogger.propagate = False
+        self.pylogger.setLevel(logging.DEBUG)
+        self.log_file = os.path.join(log_dir, 'exec.log')
+        self.pylogger.addHandler(logging.FileHandler(self.log_file))
+        if not server_env:
+            self.pylogger.addHandler(ColorHandler())
+        else:
+            self.pylogger.addHandler(logging.StreamHandler())
+        self.pylogger.propagate = False
 
         # monitor system metrics (cpu, mem, ...)
         if not server_env and sysmetrics_interval > 0:
@@ -412,14 +405,14 @@ class CombinedLogger(object):
         return
 
     def __del__(self):  # otherwise might produce multiple prints e.g. in ipython console
-        # for hdlr in self.pylogger.handlers:
-        #     hdlr.close()
-        # #self.pylogger.handlers = []
-        # del self.pylogger
+        for hdlr in self.pylogger.handlers:
+            hdlr.close()
+        self.pylogger.handlers = []
+        del self.pylogger
         self.tboard.close()
 
 
-def get_logger(exp_dir, server_env=False, sysmetrics_interval=-1):
+def get_logger(exp_dir, server_env=False, sysmetrics_interval=2):
     log_dir = os.path.join(exp_dir, "logs")
     logger = CombinedLogger('Reg R-CNN', os.path.join(log_dir, "tboard"), server_env=server_env,
                             sysmetrics_interval=sysmetrics_interval)

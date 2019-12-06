@@ -201,7 +201,6 @@ def test(cf, logger, max_fold=None):
 
     logger.info('Testing of fold {} took {}.'.format(cf.fold, logger.get_time("test_fold", reset=True, format="hms")))
 
-
 if __name__ == '__main__':
     stime = time.time()
 
@@ -297,7 +296,7 @@ if __name__ == '__main__':
         """ analyse already saved predictions.
         """
         cf = utils.prep_exp(args.dataset_name, args.exp_dir, args.server_env, use_stored_settings=True, is_training=False)
-        logger = utils.get_logger(cf.exp_dir, cf.server_env, -1)
+        logger = utils.get_logger(cf.exp_dir, cf.server_env, cf.sysmetrics_interval)
 
         if cf.held_out_test_set and not cf.eval_test_fold_wise:
             predictor = Predictor(cf, net=None, logger=logger, mode='analysis')

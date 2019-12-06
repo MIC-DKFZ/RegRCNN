@@ -26,7 +26,7 @@ class DefaultConfigs:
     def __init__(self, server_env=None, dim=2):
         self.server_env = server_env
         self.cuda_benchmark = True
-        self.sysmetrics_interval = -1 # set > 0 to record system metrics to tboard with this time span in seconds.
+        self.sysmetrics_interval = 2 # set > 0 to record system metrics to tboard with this time span in seconds.
         #########################
         #         I/O           #
         #########################

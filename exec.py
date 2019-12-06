@@ -113,8 +113,10 @@ def train(cf, logger):
         #--------------- train eval ----------------
         if (epoch-1)%cf.plot_frequency==0:
             # view an example batch
+            logger.time("train_plot")
             plg.view_batch(cf, batch, results_dict, has_colorchannels=cf.has_colorchannels, show_gt_labels=True,
-                               out_file=os.path.join(cf.plot_dir, 'batch_example_train_{}.png'.format(cf.fold)))
+                           out_file=os.path.join(cf.plot_dir, 'batch_example_train_{}.png'.format(cf.fold)))
+            logger.info("generated train-example plot in {:.2f}s".format(logger.get_time("train_plot", reset=True)))
 
 
         logger.time("evals")
@@ -212,7 +214,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-m', '--mode', type=str,  default='train_test', help='one out of: create_exp, analysis, train, train_test, or test')
     parser.add_argument('-f', '--folds', nargs='+', type=int, default=None, help='None runs over all folds in CV. otherwise specify list of folds.')
-    parser.add_argument('--exp_dir', type=str, default='/home/gregor/Documents/medicaldetectiontoolkit/datasets/prostate/experiments/dev',
+    parser.add_argument('--exp_dir', type=str, default='/home/gregor/Documents/regrcnn/datasets/toy/experiments/dev',
                         help='path to experiment dir. will be created if non existent.')
     parser.add_argument('--server_env', default=False, action='store_true', help='change IO settings to deploy models on a cluster.')
     parser.add_argument('--data_dest', type=str, default=None, help="path to final data folder if different from config")
@@ -222,7 +224,7 @@ if __name__ == '__main__':
                              'where source code might change before the job actually runs.')
     parser.add_argument('--resume_from_checkpoint', type=str, default=None,
                         help='path to checkpoint. if resuming from checkpoint, the desired fold still needs to be parsed via --folds.')
-    parser.add_argument('--dataset_name', type=str, default='prostate', help="path to the dataset-specific code in source_dir/datasets")
+    parser.add_argument('--dataset_name', type=str, default='toy', help="path to the dataset-specific code in source_dir/datasets")
     parser.add_argument('-d', '--dev', default=False, action='store_true', help="development mode: shorten everything")
 
     args = parser.parse_args()
@@ -240,7 +242,7 @@ if __name__ == '__main__':
         if args.dev:
             folds = [0,1]
             cf.batch_size, cf.num_epochs, cf.min_save_thresh, cf.save_n_models = 3 if cf.dim==2 else 1, 1, 0, 1
-            cf.num_train_batches, cf.num_val_batches, cf.max_val_patients = 7, 1, 1
+            cf.num_train_batches, cf.num_val_batches, cf.max_val_patients = 5, 1, 1
             cf.test_n_epochs =  cf.save_n_models
             cf.max_test_patients = 1
             torch.backends.cudnn.benchmark = cf.dim==3

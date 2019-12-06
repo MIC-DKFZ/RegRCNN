@@ -370,13 +370,12 @@ class BatchGenerator(SlimDataLoaderBase):
     def print_stats(self, logger=None, file=None, plot_file=None, plot=True):
         print_f = utils.CombinedPrinter(logger, file)
 
-        print_f('\nFinal Training Stats\n')
-        print_f('*********************\n')
+        print_f('\n***Final Training Stats***')
         total_count = np.sum(self.stats['roi_counts'])
         for tix, count in enumerate(self.stats['roi_counts']):
             #name = self.cf.class_dict[tix] if self.balance_target=="class_targets" else str(self.unique_ts[tix])
             name=str(self.unique_ts[tix])
-            print_f('{}: {} rois seen ({:.1f}%).\n'.format(name, count, count / total_count * 100))
+            print_f('{}: {} rois seen ({:.1f}%).'.format(name, count, count / total_count * 100))
         total_samples = self.cf.num_epochs*self.cf.num_train_batches*self.cf.batch_size
         print_f('empty samples seen: {} ({:.1f}%).\n'.format(self.stats['empty_samples_count'],
                                                          self.stats['empty_samples_count']/total_samples*100))
@@ -453,8 +452,6 @@ def get_patch_crop_coords(img, patch_size, min_overlap=30):
             else:
                 coords_mesh_grid.append([ymin, ymax, xmin, xmax])
     return np.array(coords_mesh_grid).astype(int)
-
-
 
 def pad_nd_image(image, new_shape=None, mode="edge", kwargs=None, return_slicer=False, shape_must_be_divisible_by=None):
     """

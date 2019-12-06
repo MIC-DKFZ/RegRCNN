@@ -22,11 +22,10 @@ import threading
 import pickle
 import importlib.util
 import psutil
-from functools import partial
 import time
 
 import logging
-from tensorboardX import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 
 from collections import OrderedDict
 import numpy as np

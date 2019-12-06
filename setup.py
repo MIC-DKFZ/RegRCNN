@@ -14,20 +14,43 @@
 # limitations under the License.
 # ==============================================================================
 
-from distutils.core import setup
-from setuptools import find_packages
+from setuptools import setup, find_packages
+
+import os, site
+
+def parse_requirements(filename, exclude=[]):
+    lineiter = (line.strip() for line in open(filename))
+    return [line for line in lineiter if line and not line.startswith("#") and not line.split("==")[0] in exclude]
+
+def install_custom_ext(setup_path):
+    os.system("python "+setup_path+" install")
+    return
+
+def clean():
+    """Custom clean command to tidy up the project root."""
+    os.system('rm -vrf ./build ./dist ./*.pyc ./*.tgz ./*.egg-info')
 
 req_file = "requirements.txt"
+custom_exts = ["nms-extension", "RoIAlign-extension-2D", "RoIAlign-extension-3D"]
 
-def parse_requirements(filename):
-    lineiter = (line.strip() for line in open(filename))
-    return [line for line in lineiter if line and not line.startswith("#")]
+install_reqs = parse_requirements(req_file, exclude=custom_exts)
 
-install_reqs = parse_requirements(req_file)
-
-setup(name='model',
-      version='latest',
+setup(name='RegRCNN',
+      version='0.0.2',
       packages=find_packages(exclude=['test', 'test.*']),
       install_requires=install_reqs,
-      dependency_links=[],
+      dependency_links=[]
       )
+
+# recognise newly installed packages in sys.path
+site.main()
+
+custom_exts =  ["custom_extensions/nms", "custom_extensions/roi_align"]
+for path in custom_exts:
+    setup_path = os.path.join(path, "setup.py")
+    try:
+        install_custom_ext(setup_path)
+    except Exception as e:
+        print("FAILED to install custom extension {} due to Error:\n{}".format(path, e))
+
+clean()

@@ -867,7 +867,7 @@ def get_train_generators(cf, logger,  data_statistics=True):
         assert cf.training_gts == 'merged', 'val_patient not yet implemented for sa gts'
         batch_gen['val_patient'] = PatientBatchIterator_merged(cf, val_data) if cf.training_gts=='merged' \
             else PatientBatchIterator_sa(cf, val_data)
-        batch_gen['n_val'] = len(val_data) if cf.max_val_patients is None else cf.max_val_patients
+        batch_gen['n_val'] = len(val_data) if cf.max_val_patients=="all" else min(len(val_data), cf.max_val_patients)
     else:
         batch_gen['n_val'] = cf.num_val_batches
 
@@ -903,7 +903,7 @@ if __name__ == "__main__":
     import utils.exp_utils as utils
     from configs import Configs
 
-    cf = configs()
+    cf = Configs()
     cf.batch_size = 3
     #dataset_path = os.path.dirname(os.path.realpath(__file__))
     #exp_path = os.path.join(dataset_path, "experiments/dev")

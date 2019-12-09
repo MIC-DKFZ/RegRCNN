@@ -509,7 +509,7 @@ def get_train_generators(cf, logger, data_statistics=False):
 
     if cf.val_mode == 'val_patient':
         batch_gen['val_patient'] = PatientBatchIterator(cf, val_data, mode='validation')
-        batch_gen['n_val'] = len(val_ids) if cf.max_val_patients is None else cf.max_val_patients
+        batch_gen['n_val'] = len(val_ids) if cf.max_val_patients=="all" else min(len(val_ids), cf.max_val_patients)
     elif cf.val_mode == 'val_sampling':
         batch_gen['n_val'] = cf.num_val_batches if cf.num_val_batches != "all" else len(val_data)
 

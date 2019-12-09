@@ -107,6 +107,7 @@ class DefaultConfigs:
 
         self.create_bounding_box_targets = True
         self.class_specific_seg = True  # False if self.model=="mrcnn" else True
+        self.max_val_patients = "all"
         #########################
         #      Architecture      #
         #########################
@@ -186,9 +187,6 @@ class DefaultConfigs:
 
         # if True, mask loss is not applied. used for data sets, where no pixel-wise annotations are provided.
         self.frcnn_mode = False
-
-
-
 
         self.return_masks_in_train = False
         # if True, unmolds masks in Mask R-CNN to full-res for plotting/monitoring.

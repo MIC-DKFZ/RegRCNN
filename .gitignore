@@ -1,7 +1,11 @@
+*.pyc
 *.pickle
 *.ipynb_checkpoints*
-*.pyc
 *.pkl
 *.log
+*.png
+*.jpg
+*.pdf
 __pycache__/
 
+!/assets/*

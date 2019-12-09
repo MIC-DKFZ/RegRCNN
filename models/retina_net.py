@@ -741,8 +741,7 @@ class net(nn.Module):
 
         results_dict = self.get_results(img.shape, detections, seg_logits, box_results_list)
         results_dict['seg_preds'] = results_dict['seg_preds'].argmax(axis=1).astype('uint8')[:, np.newaxis]
-        # todo error
-        raise Exception("a test error")
+
         if self.cf.model == 'retina_unet':
             seg_loss_dice = 1 - mutils.batch_dice(F.softmax(seg_logits, dim=1),var_seg_ohe)
             seg_loss_ce = F.cross_entropy(seg_logits, var_seg[:, 0])

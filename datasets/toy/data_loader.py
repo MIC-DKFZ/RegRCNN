@@ -546,7 +546,7 @@ if __name__=="__main__":
     import utils.exp_utils as utils
     from configs import Configs
 
-    cf = configs()
+    cf = Configs()
 
     total_stime = time.time()
     times = {}
@@ -561,7 +561,7 @@ if __name__=="__main__":
     logger = utils.get_logger(cf.exp_dir)
     gens = get_train_generators(cf, logger)
     train_loader = gens['train']
-    for i in range(1):
+    for i in range(0):
         stime = time.time()
         print("producing training batch nr ", i)
         ex_batch = next(train_loader)
@@ -572,13 +572,14 @@ if __name__=="__main__":
 
     val_loader = gens['val_sampling']
     stime = time.time()
-    for i in range(0):
+    for i in range(1):
         ex_batch = next(val_loader)
         times["val_batch"] = time.time() - stime
         stime = time.time()
         #"experiments/dev/dev_exvalbatch_{}.png"
         plg.view_batch(cf, ex_batch, out_file="experiments/dev/dev_exvalbatch_{}.png".format(i), show_gt_labels=True, vmin=0, show_info=True)
         times["val_plot"] = time.time() - stime
+    import IPython; IPython.embed()
     #
     test_loader = get_test_generator(cf, logger)["test"]
     stime = time.time()

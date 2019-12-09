@@ -725,8 +725,8 @@ class Evaluator():
 
                     if hasattr(self, "seg_df") and not boxes_only and self.cf.evaluate_fold_means and len(seg_cl_df.fold.unique()) > 1:
                         fold_means = seg_cl_df.groupby(['fold'], as_index=True).agg({dice_col:"mean"})
-                        stats_dict["dice_folds_mean"] = fold_means.mean().item()
-                        stats_dict["dice_folds_std"] = fold_means.std().item()
+                        stats_dict["dice_folds_mean"] = float(fold_means.mean())
+                        stats_dict["dice_folds_std"] = float(fold_means.std())
 
                 # -------------- patient-based -----------------
                 # on patient level, aggregate predictions per patient (pid): The patient predicted score is the highest
@@ -796,8 +796,8 @@ class Evaluator():
                         stats_dict['ap_folds_std'] = np.std(aps)
                     if hasattr(self, "seg_df") and not boxes_only and self.cf.evaluate_fold_means and len(seg_cl_df.fold.unique()) > 1:
                         fold_means = seg_cl_df.groupby(['fold'], as_index=True).agg({dice_col:"mean"})
-                        stats_dict["dice_folds_mean"] = fold_means.mean().item()
-                        stats_dict["dice_folds_std"] = fold_means.std().item()
+                        stats_dict["dice_folds_mean"] = float(fold_means.mean())
+                        stats_dict["dice_folds_std"] = float(fold_means.std())
 
                 all_stats.append(stats_dict)
 

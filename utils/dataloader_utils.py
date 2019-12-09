@@ -526,7 +526,8 @@ def convert_seg_to_bounding_box_coordinates(data_dict, dim, roi_item_keys, get_r
     :param roi_item_keys: keys of the roi-wise items in data_dict to process
     :param n_rg_feats: nr of regression vector features
     :param get_rois_from_seg:
-    :return: coords (y1,x1,y2,x2 (,z1,z2))
+    :return: coords (y1,x1,y2,x2 (,z1,z2)) where the segmentation GT is framed by +1 voxel, i.e., for an object with
+        z-extensions z1=0 through z2=5, bbox target coords will be z1=-1, z2=6. (analogically for x,y).
     '''
 
     bb_target = []

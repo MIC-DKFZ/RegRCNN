@@ -40,11 +40,11 @@ __device__ inline float devIoU_3d(T const* const a, T const* const b) {
   T left = max(a[1], b[1]), right = min(a[3], b[3]);
   T front = max(a[4], b[4]), back = min(a[5], b[5]);
   T width = max(right - left, (T)0), height = max(top - bottom, (T)0);
-  T depth = max(back - front + 1, (T)0);
+  T depth = max(back - front, (T)0);
   T interS = width * height * depth;
   // calc separate boxes volumes
-  T Sa = (a[2] - a[0]) * (a[3] - a[1]) * (a[5] - a[4] +1);
-  T Sb = (b[2] - b[0]) * (b[3] - b[1]) * (b[5] - b[4] +1);
+  T Sa = (a[2] - a[0]) * (a[3] - a[1]) * (a[5] - a[4]);
+  T Sb = (b[2] - b[0]) * (b[3] - b[1]) * (b[5] - b[4]);
 
   return interS / (Sa + Sb - interS);
 }

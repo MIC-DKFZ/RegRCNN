@@ -313,7 +313,7 @@ class CombinedLogger(object):
             os.nice(-19)
             self.info("Logging system metrics with superior process priority.")
         except:
-            self.info("Logging system metrics WITHOUT superior process priority.")
+            self.info("Logging system metrics without superior process priority.")
         while True:
             metrics = self.sysmetrics_update()
             self.sysmetrics2tboard(metrics, global_step=metrics["rel_time"])

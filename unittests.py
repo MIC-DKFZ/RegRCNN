@@ -20,6 +20,7 @@ import os
 import pickle
 import time
 from multiprocessing import  Pool
+import subprocess
 
 import numpy as np
 import pandas as pd
@@ -132,7 +133,7 @@ class VerifyLIDCSAIntegrity(unittest.TestCase):
         print("finished checking pid {}, {} faulty cases".format(pid, len(faulty_cases)))
         return faulty_cases
 
-    def check_sa_gts(self, pp_dir, pid_subset=None, check_meta_files=False, check_info_df=True, processes=os.cpu_count()):
+    def check_sa_gts(cf, pp_dir, pid_subset=None, check_meta_files=False, check_info_df=True, processes=os.cpu_count()):
         report_name = "verify_seg_label_pairings.csv"
         pids = {file_name.split("_")[0] for file_name in os.listdir(pp_dir) if file_name not in [report_name, "info_df.pickle"]}
         if pid_subset is not None:
@@ -434,10 +435,28 @@ class CheckRuntimeErrors(unittest.TestCase):
 
     def test(self):
         cf = utils.import_module("toy_cf", 'datasets/toy/configs.py').Configs()
-        for model in ["retina_net",]:
-            cf.model = None
-
-        pass
+        exp_dir = "./unittesting/"
+        #checks = {"retina_net": False, "mrcnn": False}
+        #print("Testing for runtime errors with models {}".format(list(checks.keys())))
+        #for model in tqdm.tqdm(list(checks.keys())):
+            # cf.model = model
+            # cf.model_path = 'models/{}.py'.format(cf.model if not 'retina' in cf.model else 'retina_net')
+            # cf.model_path = os.path.join(cf.source_dir, cf.model_path)
+            # {'mrcnn': cf.add_mrcnn_configs,
+            #  'retina_net': cf.add_mrcnn_configs, 'retina_unet': cf.add_mrcnn_configs,
+            #  'detection_unet': cf.add_det_unet_configs, 'detection_fpn': cf.add_det_fpn_configs
+            #  }[model]()
+        # todo change structure of configs-handling with exec.py so that its dynamically parseable instead of needing to
+        # todo be changed in the file all the time.
+        checks = {cf.model:False}
+        completed_process = subprocess.run("python exec.py --dev --dataset_name toy -m train_test --exp_dir {}".format(exp_dir),
+                                           shell=True, capture_output=True, text=True)
+        if completed_process.returncode!=0:
+            print("Runtime test of model {} failed due to\n{}".format(cf.model, completed_process.stderr))
+        else:
+            checks[cf.model] = True
+        subprocess.call("rm -rf {}".format(exp_dir), shell=True)
+        assert all(checks.values()), "A runtime test crashed."
 
 
 if __name__=="__main__":

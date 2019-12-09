@@ -360,7 +360,7 @@ class net(nn.Module):
 
         loss_order = ['rpn_class', 'rpn_bbox', 'mrcnn_bbox', 'mrcnn_mask', 'mrcnn_class', 'mrcnn_rg']
         if hasattr(cf, "mrcnn_loss_weights"):
-            #bring into right order
+            # bring into right order
             self.loss_weights = np.array([cf.mrcnn_loss_weights[k] for k in loss_order])
         else:
             self.loss_weights = np.array([1.]*len(loss_order))
@@ -526,7 +526,7 @@ class net(nn.Module):
         batch_ixs = detections[:, self.cf.dim*2]
         detections = [detections[batch_ixs == ix] for ix in range(img_shape[0])]
         mrcnn_mask = [detection_masks[batch_ixs == ix] for ix in range(img_shape[0])]
-        #mrcnn_mask: shape (b_size, variable, variable, n_classes), variable bc depends on single instance mask size
+        # mrcnn_mask: shape (b_size, variable, variable, n_classes), variable bc depends on single instance mask size
 
         if box_results_list == None: # for test_forward, where no previous list exists.
             box_results_list =  [[] for _ in range(img_shape[0])]
@@ -645,8 +645,7 @@ class net(nn.Module):
         mrcnn_target_deltas, target_mask, target_class_ids, target_regressions = \
             self.loss_samples_forward(gt_boxes, gt_masks, gt_class_ids, gt_regressions)
 
-        stime = time.time()
-        #loop over batch
+        # loop over batch
         for b in range(img.shape[0]):
             if len(gt_boxes[b]) > 0:
                 # add gt boxes to output list
@@ -688,7 +687,6 @@ class net(nn.Module):
             rpn_proposals = proposal_boxes[b][proposal_boxes[b, :, -1].argsort()][::-1]
             for r in rpn_proposals[:self.cf.n_plot_rpn_props, :-1]:
                 box_results_list[b].append({'box_coords': r, 'box_type': 'prop'})
-        #print("gt anc matching, rpn losses loop time {:.4f}s".format(time.time()-stime))
 
         # add positive and negative roi samples used for mrcnn losses to output list for monitoring.
         if not 0 in sample_proposals.shape:
@@ -711,9 +709,6 @@ class net(nn.Module):
         loss = batch_rpn_class_loss + batch_rpn_bbox_loss +\
                mrcnn_bbox_loss + mrcnn_mask_loss +  mrcnn_class_loss + mrcnn_regressions_loss
 
-        # loss= [batch_rpn_class_loss, batch_rpn_bbox_loss, mrcnn_bbox_loss, mrcnn_mask_loss, mrcnn_class_loss,
-        #           mrcnn_regressions_loss]
-        # loss = torch.tensor([part_loss * self.loss_weights[i] for i, part_loss in enumerate(loss)], requires_grad=True).sum(0, keepdim=True)
 
         # monitor RPN performance: detection count = the number of correctly matched proposals per fg-class.
         #dcount = [list(target_class_ids.cpu().data.numpy()).count(c) for c in np.arange(self.cf.head_classes)[1:]]

@@ -18,17 +18,14 @@ import os
 from multiprocessing import Pool
 import pickle
 import time
-import copy
 
 import numpy as np
 import torch
 from scipy.stats import norm
 from collections import OrderedDict
-import pandas as pd
 
 import plotting as plg
 import utils.model_utils as mutils
-import utils.exp_utils as utils
 
 
 def get_mirrored_patch_crops(patch_crops, org_img_shape):
@@ -409,9 +406,6 @@ def apply_2d_3d_merging_to_patient(inputs):
             keep_ix, keep_z = [], []
 
         # store kept predictions in new results list and add corresponding z-dimension info to coordinates.
-        #     for kix, kz in zip(keep_ix, keep_z):
-        #         out_patient_results_list.append({'box_type': 'det', 'box_coords': list(box_coords[kix]) + kz,
-        #                                          'box_score': box_scores[kix], 'box_pred_class_id': cl})
         for kix, kz in zip(keep_ix, keep_z):
             keep_box = det_boxes[kix][1]
             keep_box['box_coords'] = list(keep_box['box_coords']) + kz
@@ -487,7 +481,6 @@ class Predictor:
                  - 'seg_preds': pixel-wise predictions. (b, 1, y, x, (z))
                  - loss / class_loss (only in validation mode)
         """
-        #self.logger.info('forwarding (patched) patient with shape: {}'.format(batch['data'].shape))
 
         img = batch['data']
 
@@ -501,7 +494,7 @@ class Predictor:
             elif self.mode == 'test':
                 results_dict = self.net.test_forward(batch, return_masks=self.cf.return_masks_in_test)
 
-        else: #needs batch tiling
+        else: # needs batch tiling
             split_ixs = np.split(np.arange(img.shape[0]), np.arange(img.shape[0])[::self.batch_size])
             chunk_dicts = []
             for chunk_ixs in split_ixs[1:]:  # first split is elements before 0, so empty

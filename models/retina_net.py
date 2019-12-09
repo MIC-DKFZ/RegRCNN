@@ -532,7 +532,7 @@ class net(nn.Module):
             self.roi_regressor = lambda x: [torch.tensor([]).cuda()]
 
         if self.cf.model == 'retina_unet':
-            self.final_conv = conv(self.cf.end_filts, self.cf.num_seg_classes, ks=1, pad=0, norm=self.cf.norm, relu=None)
+            self.final_conv = conv(self.cf.end_filts, self.cf.num_seg_classes, ks=1, pad=0, norm=None, relu=None)
 
     def forward(self, img):
         """

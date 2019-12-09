@@ -359,10 +359,9 @@ def nms_numpy(box_coords, scores, thresh):
         iou = inter / (areas[i] + areas[order] - inter)
 
         non_matches = np.nonzero(iou <= thresh)[0]  # get all elements that were not matched and discard all others.
-        #print("iou keep {}: {}, non_matches {}".format(i, iou, order[non_matches]))
         order = order[non_matches]
         keep.append(i)
-    #print("total keep", keep)
+
     return keep
 
 

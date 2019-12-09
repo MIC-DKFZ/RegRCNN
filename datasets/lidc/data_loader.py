@@ -26,27 +26,20 @@ import plotting as plg
 import os
 import pickle
 import time
-import subprocess
-from multiprocessing import Pool
 
 import numpy as np
 import pandas as pd
 from collections import OrderedDict
 
 # batch generator tools from https://github.com/MIC-DKFZ/batchgenerators
-from batchgenerators.dataloading.data_loader import SlimDataLoaderBase
 from batchgenerators.transforms.spatial_transforms import MirrorTransform as Mirror
 from batchgenerators.transforms.abstract_transforms import Compose
 from batchgenerators.dataloading.multi_threaded_augmenter import MultiThreadedAugmenter
-from batchgenerators.dataloading import SingleThreadedAugmenter
 from batchgenerators.transforms.spatial_transforms import SpatialTransform
 from batchgenerators.transforms.crop_and_pad_transforms import CenterCropTransform
-#from batchgenerators.transforms.utility_transforms import ConvertSegToBoundingBoxCoordinates
 
 import utils.dataloader_utils as dutils
 from utils.dataloader_utils import ConvertSegToBoundingBoxCoordinates
-import data_manager as dmanager
-
 
 
 def save_obj(obj, name):

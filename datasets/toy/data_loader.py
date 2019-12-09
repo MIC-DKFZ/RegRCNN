@@ -15,7 +15,7 @@
 # ==============================================================================
 
 import sys
-sys.path.append('../') #works on cluster indep from where sbatch job is started
+sys.path.append('../') # works on cluster indep from where sbatch job is started
 import plotting as plg
 
 import numpy as np
@@ -26,17 +26,13 @@ import pickle
 import time
 
 # batch generator tools from https://github.com/MIC-DKFZ/batchgenerators
-from batchgenerators.dataloading.data_loader import SlimDataLoaderBase
 from batchgenerators.transforms.spatial_transforms import MirrorTransform as Mirror
 from batchgenerators.transforms.abstract_transforms import Compose
 from batchgenerators.dataloading.multi_threaded_augmenter import MultiThreadedAugmenter
-from batchgenerators.dataloading import SingleThreadedAugmenter
 from batchgenerators.transforms.spatial_transforms import SpatialTransform
 from batchgenerators.transforms.crop_and_pad_transforms import CenterCropTransform
-#from batchgenerators.transforms.utility_transforms import ConvertSegToBoundingBoxCoordinates
 
 sys.path.append(os.path.dirname(os.path.realpath(__file__)))
-import utils.exp_utils as utils
 import utils.dataloader_utils as dutils
 from utils.dataloader_utils import ConvertSegToBoundingBoxCoordinates
 

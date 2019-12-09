@@ -205,10 +205,12 @@ if __name__ == '__main__':
     stime = time.time()
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-m', '--mode', type=str,  default='train_test', help='one out of: create_exp, analysis, train, train_test, or test')
-    parser.add_argument('-f', '--folds', nargs='+', type=int, default=None, help='None runs over all folds in CV. otherwise specify list of folds.')
+    parser.add_argument('--dataset_name', type=str, default='toy',
+                        help="path to the dataset-specific code in source_dir/datasets")
     parser.add_argument('--exp_dir', type=str, default='/home/gregor/Documents/regrcnn/datasets/toy/experiments/dev',
                         help='path to experiment dir. will be created if non existent.')
+    parser.add_argument('-m', '--mode', type=str,  default='train_test', help='one out of: create_exp, analysis, train, train_test, or test')
+    parser.add_argument('-f', '--folds', nargs='+', type=int, default=None, help='None runs over all folds in CV. otherwise specify list of folds.')
     parser.add_argument('--server_env', default=False, action='store_true', help='change IO settings to deploy models on a cluster.')
     parser.add_argument('--data_dest', type=str, default=None, help="path to final data folder if different from config")
     parser.add_argument('--use_stored_settings', default=False, action='store_true',
@@ -217,7 +219,6 @@ if __name__ == '__main__':
                              'where source code might change before the job actually runs.')
     parser.add_argument('--resume_from_checkpoint', type=str, default=None,
                         help='path to checkpoint. if resuming from checkpoint, the desired fold still needs to be parsed via --folds.')
-    parser.add_argument('--dataset_name', type=str, default='toy', help="path to the dataset-specific code in source_dir/datasets")
     parser.add_argument('-d', '--dev', default=False, action='store_true', help="development mode: shorten everything")
 
     args = parser.parse_args()

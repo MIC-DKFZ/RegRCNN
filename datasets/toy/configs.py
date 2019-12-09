@@ -85,12 +85,11 @@ class Configs(DefaultConfigs):
         #         I/O           #
         #########################
 
-        self.data_sourcedir = '/mnt/HDD2TB/Documents/data/toy/cyl1ps_dev'
-        #self.data_sourcedir = '/mnt/HDD2TB/Documents/data/toy/cyl1ps_exact'
+        self.data_sourcedir = '/mnt/HDD2TB/Documents/data/toy/cyl1ps_exact'
 
         if server_env:
-            #self.data_sourcedir = '/datasets/data_ramien/toy/cyl1ps_exact_npz'
-            self.data_sourcedir = '/datasets/data_ramien/toy/cyl1ps_ambig_beyond_bin_npz'
+            self.data_sourcedir = '/datasets/data_ramien/toy/cyl1ps_exact_npz'
+
 
         self.test_data_sourcedir = os.path.join(self.data_sourcedir, 'test')
         self.data_sourcedir = os.path.join(self.data_sourcedir, "train")
@@ -98,7 +97,7 @@ class Configs(DefaultConfigs):
         self.info_df_name = 'info_df.pickle'
 
         # one out of ['mrcnn', 'retina_net', 'retina_unet', 'detection_unet', 'ufrcnn', 'detection_fpn'].
-        self.model = 'retina_net'
+        self.model = 'retina_unet'
         self.model_path = 'models/{}.py'.format(self.model if not 'retina' in self.model else 'retina_net')
         self.model_path = os.path.join(self.source_dir, self.model_path)
 
@@ -309,8 +308,6 @@ class Configs(DefaultConfigs):
         self.test_n_epochs = self.save_n_models  # should be called n_test_ens, since is number of models to ensemble over during testing
         # is multiplied by (1 + nr of test augs)
 
-        #self.losses_to_monitor += ['class_loss', 'rg_loss']
-
         #########################
         #   Assertions          #
         #########################
@@ -482,8 +479,6 @@ class Configs(DefaultConfigs):
         self.rpn_anchor_scales['z'] = [[ii[0], ii[0] * (2 ** (1 / 3)), ii[0] * (2 ** (2 / 3))] for ii in
                                        self.rpn_anchor_scales['z']]
         self.n_anchors_per_pos = len(self.rpn_anchor_ratios) * 3
-
-        #self.n_rpn_features = 256 if self.dim == 2 else 64
 
         # pre-selection of detections for NMS-speedup. per entire batch.
         self.pre_nms_limit = (500 if self.dim == 2 else 6250) * self.batch_size

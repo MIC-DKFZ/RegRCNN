@@ -177,6 +177,9 @@ class DefaultConfigs:
         # threshold for clustering 2D box predictions to 3D Cubes. Overlap is computed in XY.
         self.merge_3D_iou = 0.1
 
+        # number or "all" for all
+        self.max_test_patients = "all"
+
         #########################
         #   MRCNN               #
         #########################

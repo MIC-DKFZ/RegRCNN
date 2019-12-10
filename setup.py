@@ -15,7 +15,7 @@
 # ==============================================================================
 
 from setuptools import find_packages, setup
-import os, site
+import os
 
 def parse_requirements(filename, exclude=[]):
     lineiter = (line.strip() for line in open(filename))

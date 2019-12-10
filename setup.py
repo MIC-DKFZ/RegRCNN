@@ -14,8 +14,7 @@
 # limitations under the License.
 # ==============================================================================
 
-from setuptools import setup, find_packages
-
+from setuptools import find_packages, setup
 import os, site
 
 def parse_requirements(filename, exclude=[]):
@@ -32,18 +31,23 @@ def clean():
 
 req_file = "requirements.txt"
 custom_exts = ["nms-extension", "RoIAlign-extension-2D", "RoIAlign-extension-3D"]
-
 install_reqs = parse_requirements(req_file, exclude=custom_exts)
 
 setup(name='RegRCNN',
       version='0.0.2',
+      url="https://github.com/MIC-DKFZ/RegRCNN",
+      author='G. Ramien, P. Jaeger, MIC at DKFZ Heidelberg',
+      author_email='g.ramien@dkfz.de',
+      licence="Apache 2.0",
+      description="Medical Object-Detection Toolkit incl. Regression Capability.",
+      classifiers=[
+          "Development Status :: 4 - Beta",
+          "Intended Audience :: Developers",
+          "Programming Language :: Python :: 3.7"
+      ],
       packages=find_packages(exclude=['test', 'test.*']),
       install_requires=install_reqs,
-      dependency_links=[]
       )
-
-# recognise newly installed packages in sys.path
-site.main()
 
 custom_exts =  ["custom_extensions/nms", "custom_extensions/roi_align"]
 for path in custom_exts:

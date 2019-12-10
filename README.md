@@ -1,6 +1,9 @@
 Copyright © German Cancer Research Center (DKFZ), <a href="https://www.dkfz.de/en/mic/index.php">Division of Medical Image Computing (MIC)</a>. 
 Please make sure that your usage of this code is in compliance with the code <a href="LICENSE">license</a>.
 
+## Release Notes
+0.0.2 - Now with updated torch (>=1.3) and torchvision (>=0.4) dependencies and on python-3.7.5 basis.
+
 ## Introduction
 This repository holds the code framework used in the paper Reg R-CNN: Lesion Detection and Grading under Noisy Labels [1].
 The framework is a fork of MIC's [medicaldetectiontoolkit](https://github.com/MIC-DKFZ/medicaldetectiontoolkit) with added regression

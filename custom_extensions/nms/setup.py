@@ -4,8 +4,11 @@ Created at 07.11.19 19:12
 
 """
 
-import os, sys
+import os, sys, site
 from pathlib import Path
+
+# recognise newly installed packages in path
+site.main()
 
 from setuptools import setup
 from torch.utils import cpp_extension

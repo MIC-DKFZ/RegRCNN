@@ -257,8 +257,8 @@ if __name__ == '__main__':
             one for testing, the rest for training. This loop iterates k-times over the dataset, cyclically moving the
             splits. k==folds, fold in [0,folds) says which split is used for testing.
             """
-            cf.fold_dir = os.path.join(cf.exp_dir, 'fold_{}'.format(fold))
-            cf.fold, logger.fold = fold, fold
+            cf.fold_dir = os.path.join(cf.exp_dir, 'fold_{}'.format(fold)); cf.fold = fold
+            logger.set_logfile(fold=fold)
             cf.resume_from_checkpoint = resume_from_checkpoint
             if not os.path.exists(cf.fold_dir):
                 os.mkdir(cf.fold_dir)
@@ -286,8 +286,8 @@ if __name__ == '__main__':
         else:
             torch.backends.cudnn.benchmark = cf.cuda_benchmark
         for fold in folds:
-            cf.fold = fold
-            cf.fold_dir = os.path.join(cf.exp_dir, 'fold_{}'.format(cf.fold))
+            cf.fold_dir = os.path.join(cf.exp_dir, 'fold_{}'.format(fold)); cf.fold = fold
+            logger.set_logfile(fold=fold)
             if cf.fold_dir in fold_dirs:
                 test(cf, logger, max_fold=max([int(f[-1]) for f in fold_dirs]))
             else:

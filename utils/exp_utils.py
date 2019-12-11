@@ -170,14 +170,17 @@ class CombinedLogger(object):
     """Combine console and tensorboard logger and record system metrics.
     """
 
-    def __init__(self, name, log_dir, server_env=True, fold="", sysmetrics_interval=2):
+    def __init__(self, name, log_dir, server_env=True, fold="all", sysmetrics_interval=2):
         self.pylogger = logging.getLogger(name)
-        self.tboard = SummaryWriter(log_dir=log_dir)
+        self.tboard = SummaryWriter(log_dir=os.path.join(log_dir, "tboard"))
         self.times = {}
-        self.fold = fold
+        self.log_dir = log_dir
+        self.fold = str(fold)
+        self.server_env = server_env
 
         self.pylogger.setLevel(logging.DEBUG)
-        self.log_file = os.path.join(log_dir, 'exec.log')
+        self.log_file = os.path.join(log_dir, "fold_"+self.fold, 'exec.log')
+        os.makedirs(os.path.dirname(self.log_file), exist_ok=True)
         self.pylogger.addHandler(logging.FileHandler(self.log_file))
         if not server_env:
             self.pylogger.addHandler(ColorHandler())
@@ -210,6 +213,23 @@ class CombinedLogger(object):
                 return getattr(obj, attr)
         print("logger attr not found")
         #raise AttributeError("CombinedLogger has no attribute {}".format(attr))
+
+    def set_logfile(self, fold=None, log_file=None):
+        if fold is not None:
+            self.fold = str(fold)
+        if log_file is None:
+            self.log_file = os.path.join(self.log_dir, "fold_"+self.fold, 'exec.log')
+        else:
+            self.log_file = log_file
+        os.makedirs(os.path.dirname(self.log_file), exist_ok=True)
+        for hdlr in self.pylogger.handlers:
+            hdlr.close()
+        self.pylogger.handlers = []
+        self.pylogger.addHandler(logging.FileHandler(self.log_file))
+        if not self.server_env:
+            self.pylogger.addHandler(ColorHandler())
+        else:
+            self.pylogger.addHandler(logging.StreamHandler())
 
     def time(self, name, toggle=None):
         """record time-spans as with a stopwatch.
@@ -414,7 +434,7 @@ class CombinedLogger(object):
 
 def get_logger(exp_dir, server_env=False, sysmetrics_interval=2):
     log_dir = os.path.join(exp_dir, "logs")
-    logger = CombinedLogger('Reg R-CNN', os.path.join(log_dir, "tboard"), server_env=server_env,
+    logger = CombinedLogger('Reg R-CNN', log_dir, server_env=server_env,
                             sysmetrics_interval=sysmetrics_interval)
     print("logging to {}".format(logger.log_file))
     return logger

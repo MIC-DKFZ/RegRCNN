@@ -199,7 +199,7 @@ def test(cf, logger, max_fold=None):
         test_evaluator.evaluate_predictions(test_results_list)
         test_evaluator.score_test_df(max_fold=max_fold)
 
-    logger.info('Testing of fold {} took {}.'.format(cf.fold, logger.get_time("test_fold", reset=True, format="hms")))
+    logger.info('Testing of fold {} took {}.\n'.format(cf.fold, logger.get_time("test_fold", reset=True, format="hms")))
 
 if __name__ == '__main__':
     stime = time.time()
@@ -315,9 +315,8 @@ if __name__ == '__main__':
             if folds is None:
                 folds = range(cf.n_cv_splits)
             for fold in folds:
-                cf.fold = fold
-                cf.fold_dir = os.path.join(cf.exp_dir, 'fold_{}'.format(cf.fold))
-
+                cf.fold = fold; cf.fold_dir = os.path.join(cf.exp_dir, 'fold_{}'.format(cf.fold))
+                logger.set_logfile(fold=fold)
                 if cf.fold_dir in fold_dirs:
                     predictor = Predictor(cf, net=None, logger=logger, mode='analysis')
                     results_list = predictor.load_saved_predictions()

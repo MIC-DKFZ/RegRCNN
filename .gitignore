@@ -6,6 +6,10 @@
 *.png
 *.jpg
 *.pdf
+*.egg-info
+sandbox/*
+.idea/*
 __pycache__/
+
 
 !/assets/*

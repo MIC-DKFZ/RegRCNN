@@ -34,7 +34,7 @@ class Configs(DefaultConfigs):
         #         Prepro        #
         #########################
 
-        self.pp_rootdir = os.path.join('/mnt/HDD2TB/Documents/data/toy', "cyl1ps_dev")
+        self.pp_rootdir = os.path.join('/mnt/HDD2TB/Documents/data/toy', "cyl1ps_dev_exact")
         self.pp_npz_dir = self.pp_rootdir+"_npz"
 
         self.pre_crop_size = [320,320,8] #y,x,z; determines pp data shape (2D easily implementable, but only 3D for now)
@@ -51,7 +51,7 @@ class Configs(DefaultConfigs):
         # e.g.: setting 0.1 means blurred edge has min intensity 10% as large as inner-object intensity.
         self.pp_blur_min_intensity = 0.2
 
-        self.max_instances_per_sample = 1 #how many max instances over all classes per sample (img if 2d, vol if 3d)
+        self.max_instances_per_sample = 3 #how many max instances over all classes per sample (img if 2d, vol if 3d)
         self.max_instances_per_class = self.max_instances_per_sample  # how many max instances per image per class
         self.noise_scale = 0.  # std-dev of gaussian noise
 
@@ -85,7 +85,7 @@ class Configs(DefaultConfigs):
         #         I/O           #
         #########################
 
-        self.data_sourcedir = '/mnt/HDD2TB/Documents/data/toy/cyl1ps_exact'
+        self.data_sourcedir = '/mnt/HDD2TB/Documents/data/toy/cyl1ps_dev_exact'
 
         if server_env:
             self.data_sourcedir = '/datasets/data_ramien/toy/cyl1ps_exact_npz'
@@ -97,7 +97,7 @@ class Configs(DefaultConfigs):
         self.info_df_name = 'info_df.pickle'
 
         # one out of ['mrcnn', 'retina_net', 'retina_unet', 'detection_unet', 'ufrcnn', 'detection_fpn'].
-        self.model = 'retina_unet'
+        self.model = 'mrcnn'
         self.model_path = 'models/{}.py'.format(self.model if not 'retina' in self.model else 'retina_net')
         self.model_path = os.path.join(self.source_dir, self.model_path)
 

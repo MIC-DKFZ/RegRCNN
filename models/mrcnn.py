@@ -471,7 +471,8 @@ class net(nn.Module):
         samples few rois in loss_example_mining and forwards only those for loss computation.
         :param batch_gt_class_ids: list over batch elements. Each element is a list over the corresponding roi target labels.
         :param batch_gt_boxes: list over batch elements. Each element is a list over the corresponding roi target coordinates.
-        :param batch_gt_masks: list over batch elements. Each element is binary mask of shape (n_gt_rois, y, x, (z), c)
+        :param batch_gt_masks: (b,n(b),y,x (,z), c) list over batch elements. Each element holds n_gt_rois(b)
+                (i.e., dependent on the batch element) binary masks of shape (y, x, (z), c).
         :return: sample_logits: (n_sampled_rois, n_classes) predicted class scores.
         :return: sample_deltas: (n_sampled_rois, n_classes, 2 * dim) predicted corrections to be applied to proposals for refinement.
         :return: sample_mask: (n_sampled_rois, n_classes, y, x, (z)) predicted masks per class and proposal.
@@ -628,7 +629,6 @@ class net(nn.Module):
             gt_regressions = batch["rg_bin_targets"]
         else:
             gt_regressions = None
-
 
         img = torch.from_numpy(img).cuda().float()
         batch_rpn_class_loss = torch.FloatTensor([0]).cuda()

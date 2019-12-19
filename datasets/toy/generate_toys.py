@@ -379,7 +379,7 @@ if __name__ == '__main__':
 
     toy_gen = ToyGenerator(cf)
     toy_gen.create_sets()
-    toy_gen.convert_copy_npz()
+    #toy_gen.convert_copy_npz()
 
 
     mins, secs = divmod((time.time() - total_stime), 60)

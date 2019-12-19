@@ -19,8 +19,6 @@
 import utils.model_utils as mutils
 import utils.exp_utils as utils
 import sys
-sys.path.append('../')
-from custom_extensions.nms import nms
 
 import numpy as np
 import torch
@@ -28,6 +26,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils
 
+sys.path.append('..')
+from custom_extensions.nms import nms
 
 class Classifier(nn.Module):
 
@@ -682,9 +682,9 @@ class net(nn.Module):
             gt_regressions = batch["rg_bin_targets"]
         else:
             gt_regressions = None
-
-        var_seg_ohe = torch.FloatTensor(mutils.get_one_hot_encoding(batch['seg'], self.cf.num_seg_classes)).cuda()
-        var_seg = torch.LongTensor(batch['seg']).cuda()
+        if self.cf.model == 'retina_unet':
+            var_seg_ohe = torch.FloatTensor(mutils.get_one_hot_encoding(batch['seg'], self.cf.num_seg_classes)).cuda()
+            var_seg = torch.LongTensor(batch['seg']).cuda()
 
         img = torch.from_numpy(img).float().cuda()
         torch_loss = torch.FloatTensor([0]).cuda()

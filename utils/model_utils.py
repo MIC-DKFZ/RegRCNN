@@ -743,6 +743,8 @@ def loss_example_mining(cf, batch_proposals, batch_gt_boxes, batch_gt_masks, bat
     else:
         target_regressions = torch.FloatTensor().cuda()
 
+    std_dev = torch.from_numpy(cf.bbox_std_dev).float().cuda()
+
     # loop over batch and get positive and negative sample rois.
     for b in range(len(batch_gt_boxes)):
 
@@ -799,17 +801,17 @@ def loss_example_mining(cf, batch_proposals, batch_gt_boxes, batch_gt_masks, bat
 
             # Compute bbox refinement targets for positive ROIs
             deltas = box_refinement(positive_rois, roi_gt_boxes)
-            std_dev = torch.from_numpy(cf.bbox_std_dev).float().cuda()
             deltas /= std_dev
 
-            roi_masks = gt_masks[roi_gt_box_assignment].unsqueeze(1)  # .squeeze(-1)
-            assert roi_masks.shape[-1] == 1
+            assert gt_masks[roi_gt_box_assignment].shape[-1] == 1
+            roi_masks = gt_masks[roi_gt_box_assignment].unsqueeze(1).squeeze(-1)
+
             # Compute mask targets
             boxes = positive_rois
             box_ids = torch.arange(roi_masks.shape[0]).cuda().unsqueeze(1).float()
 
             if len(cf.mask_shape) == 2:
-                # todo what are the dims of roi_masks? (n_matched_boxes_with_gts, 1 (dummy channel dim), y,x, 1 (WHY?))
+                # todo what are the dims of roi_masks? (n_matched_boxes_with_gts, 1 (dummy channel dim), y,x, c (WHY?))
                 masks = roi_align.roi_align_2d(roi_masks,
                                                torch.cat((box_ids, boxes), dim=1),
                                                cf.mask_shape)

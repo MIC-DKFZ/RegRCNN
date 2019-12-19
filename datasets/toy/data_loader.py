@@ -540,7 +540,7 @@ def get_test_generator(cf, logger):
 if __name__=="__main__":
 
     import utils.exp_utils as utils
-    from .configs import Configs
+    from configs import Configs
 
     cf = Configs()
 

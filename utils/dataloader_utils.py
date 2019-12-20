@@ -528,6 +528,8 @@ def convert_seg_to_bounding_box_coordinates(data_dict, dim, roi_item_keys, get_r
     :param get_rois_from_seg:
     :return: coords (y1,x1,y2,x2 (,z1,z2)) where the segmentation GT is framed by +1 voxel, i.e., for an object with
         z-extensions z1=0 through z2=5, bbox target coords will be z1=-1, z2=6. (analogically for x,y).
+        data_dict['roi_masks']: (b, n(b), c, h(n), w(n) (z(n))) list like roi_labels but with arrays (masks) inplace of
+        integers. c==1 if segmentation not one-hot encoded.
     '''
 
     bb_target = []
@@ -563,18 +565,13 @@ def convert_seg_to_bounding_box_coordinates(data_dict, dim, roi_item_keys, get_r
                     # add background class = 0. rix is a patient wide index of lesions. since 'class_targets' is
                     # also patient wide, this assignment is not dependent on patch occurrences.
                     for name in roi_item_keys:
-                        # if name == "class_targets":
-                        #     # add background class = 0. rix is a patient-wide index of lesions. since 'class_targets' is
-                        #     # also patient wide, this assignment is not dependent on patch occurrences.
-                        #     p_roi_items_lists[name].append(data_dict[name][b][rix]+1)
-                        # else:
                         p_roi_items_lists[name].append(data_dict[name][b][rix])
 
                     assert data_dict["class_targets"][b][rix]>=1, "convertsegtobbox produced bg roi w cl targ {} and unique roi seg {}".format(data_dict["class_targets"][b][rix], np.unique(r))
 
 
                 if class_specific_seg:
-                    out_seg[b][data_dict['seg'][b] == rix + 1] = data_dict['class_targets'][b][rix] #+ 1
+                    out_seg[b][data_dict['seg'][b] == rix + 1] = data_dict['class_targets'][b][rix]
 
             if not class_specific_seg:
                 out_seg[b][data_dict['seg'][b] > 0] = 1

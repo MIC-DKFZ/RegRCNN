@@ -85,7 +85,7 @@ class Configs(DefaultConfigs):
         #         I/O           #
         #########################
 
-        self.data_sourcedir = '/mnt/HDD2TB/Documents/data/toy/cyl1ps_dev_exact'
+        self.data_sourcedir = '/mnt/HDD2TB/Documents/data/toy/cyl1ps_exact'
 
         if server_env:
             self.data_sourcedir = '/datasets/data_ramien/toy/cyl1ps_exact_npz'
@@ -107,7 +107,7 @@ class Configs(DefaultConfigs):
         #########################
 
         # one out of [2, 3]. dimension the model operates in.
-        self.dim = 3
+        self.dim = 2
 
         # 'class', 'regression', 'regression_bin', 'regression_ken_gal'
         # currently only tested mode is a single-task at a time (i.e., only one task in below list)

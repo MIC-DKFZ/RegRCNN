@@ -443,7 +443,7 @@ if __name__ == "__main__":
     total_stime = time.time()
 
     import configs
-    cf = configs.configs()
+    cf = configs.Configs()
 
     # analysis finding: the following patients have unclear annotations. some raters gave more than one judgement
     # on the same roi.
@@ -456,7 +456,7 @@ if __name__ == "__main__":
     # initialization instead of passing the pre-compiled list.
 
 
-    pp = Preprocessor(cf, overwrite=True, exclude_inconsistents=exclude_paths, max_count=None, pids_subset=None)#["0998a"])
+    pp = Preprocessor(cf, overwrite=True, exclude_inconsistents=exclude_paths, max_count=80, pids_subset=None)#["0998a"])
     #pp.analyze_lesion("0305a", "5728")
     #pp.analyze_lesion("0305a", "5741")
     #pp.analyze_lesion("0447a", "8840")

@@ -276,6 +276,7 @@ def compute_mrcnn_mask_loss(pred_masks, target_masks, target_class_ids):
     :param target_class_ids: (n_sampled_rois)
     :return: loss: torch 1D tensor.
     """
+    #print("targ masks", target_masks.unique(return_counts=True))
     if not 0 in torch.nonzero(target_class_ids > 0).size():
         # Only positive ROIs contribute to the loss. And only
         # the class-specific mask of each ROI.
@@ -471,8 +472,8 @@ class net(nn.Module):
         samples few rois in loss_example_mining and forwards only those for loss computation.
         :param batch_gt_class_ids: list over batch elements. Each element is a list over the corresponding roi target labels.
         :param batch_gt_boxes: list over batch elements. Each element is a list over the corresponding roi target coordinates.
-        :param batch_gt_masks: (b,n(b),y,x (,z), c) list over batch elements. Each element holds n_gt_rois(b)
-                (i.e., dependent on the batch element) binary masks of shape (y, x, (z), c).
+        :param batch_gt_masks: (b, n(b), c, y, x (,z)) list over batch elements. Each element holds n_gt_rois(b)
+                (i.e., dependent on the batch element) binary masks of shape (c, y, x, (z)).
         :return: sample_logits: (n_sampled_rois, n_classes) predicted class scores.
         :return: sample_deltas: (n_sampled_rois, n_classes, 2 * dim) predicted corrections to be applied to proposals for refinement.
         :return: sample_mask: (n_sampled_rois, n_classes, y, x, (z)) predicted masks per class and proposal.
@@ -611,6 +612,8 @@ class net(nn.Module):
         train method (also used for validation monitoring). wrapper around forward pass of network. prepares input data
         for processing, computes losses, and stores outputs in a dictionary.
         :param batch: dictionary containing 'data', 'seg', etc.
+            batch['roi_masks']: (b, n(b), c, h(n), w(n) (z(n))) list like roi_labels but with arrays (masks) inplace of
+        integers. c==channels of the raw segmentation.
         :return: results_dict: dictionary with keys:
                 'boxes': list over batch elements. each batch element is a list of boxes. each box is a dictionary:
                         [[{box_0}, ... {box_n}], [{box_0}, ... {box_n}], ...]
@@ -620,8 +623,9 @@ class net(nn.Module):
         """
         img = batch['data']
         gt_boxes = batch['bb_target']
-        axes = (0, 2, 3, 1) if self.cf.dim == 2 else (0, 2, 3, 4, 1)
-        gt_masks = [np.transpose(batch['roi_masks'][ii], axes=axes) for ii in range(len(batch['roi_masks']))]
+        #axes = (0, 2, 3, 1) if self.cf.dim == 2 else (0, 2, 3, 4, 1)
+        #gt_masks = [np.transpose(batch['roi_masks'][ii], axes=axes) for ii in range(len(batch['roi_masks']))]
+        gt_masks = batch['roi_masks']
         gt_class_ids = batch['class_targets']
         if 'regression' in self.cf.prediction_tasks:
             gt_regressions = batch["regression_targets"]
@@ -644,7 +648,6 @@ class net(nn.Module):
         mrcnn_pred_deltas, mrcnn_pred_mask, mrcnn_class_logits, mrcnn_regressions, sample_proposals, \
         mrcnn_target_deltas, target_mask, target_class_ids, target_regressions = \
             self.loss_samples_forward(gt_boxes, gt_masks, gt_class_ids, gt_regressions)
-
         # loop over batch
         for b in range(img.shape[0]):
             if len(gt_boxes[b]) > 0:
@@ -701,26 +704,19 @@ class net(nn.Module):
         mrcnn_regressions_loss = compute_mrcnn_regression_loss(self.cf.prediction_tasks, mrcnn_regressions, target_regressions, target_class_ids)
         # mrcnn can be run without pixelwise annotations available (Faster R-CNN mode).
         # In this case, the mask_loss is taken out of training.
-        if not self.cf.frcnn_mode:
-            mrcnn_mask_loss = compute_mrcnn_mask_loss(mrcnn_pred_mask, target_mask, target_class_ids)
-        else:
+        if self.cf.frcnn_mode:
             mrcnn_mask_loss = torch.FloatTensor([0]).cuda()
+        else:
+            mrcnn_mask_loss = compute_mrcnn_mask_loss(mrcnn_pred_mask, target_mask, target_class_ids)
 
         loss = batch_rpn_class_loss + batch_rpn_bbox_loss +\
                mrcnn_bbox_loss + mrcnn_mask_loss +  mrcnn_class_loss + mrcnn_regressions_loss
-
-
-        # monitor RPN performance: detection count = the number of correctly matched proposals per fg-class.
-        #dcount = [list(target_class_ids.cpu().data.numpy()).count(c) for c in np.arange(self.cf.head_classes)[1:]]
-        #self.logger.info("regression loss {:.3f}".format(mrcnn_regressions_loss.item()))
-        #self.logger.info("loss: {0:.2f}, rpn_class: {1:.2f}, rpn_bbox: {2:.2f}, mrcnn_class: {3:.2f}, mrcnn_bbox: {4:.2f}, "
-        #      "mrcnn_mask: {5:.2f}, dcount {6}".format(loss.item(), batch_rpn_class_loss.item(),
-        #      batch_rpn_bbox_loss.item(), mrcnn_class_loss.item(), mrcnn_bbox_loss.item(), mrcnn_mask_loss.item(), dcount))
 
         # run unmolding of predictions for monitoring and merge all results to one dictionary.
         return_masks = self.cf.return_masks_in_val if is_validation else self.cf.return_masks_in_train
         results_dict = self.get_results(img.shape, detections, detection_masks, box_results_list,
                                         return_masks=return_masks)
+
         results_dict['seg_preds'] = results_dict['seg_preds'].argmax(axis=1).astype('uint8')[:,np.newaxis]
         if 'dice' in self.cf.metrics:
             results_dict['batch_dices'] = mutils.dice_per_batch_and_class(

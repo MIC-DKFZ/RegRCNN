@@ -33,6 +33,7 @@ import tqdm
 from custom_extensions.nms import nms
 from custom_extensions.roi_align import roi_align
 
+import torchvision as tv
 
 ############################################################
 #  Segmentation Processing
@@ -712,7 +713,7 @@ def loss_example_mining(cf, batch_proposals, batch_gt_boxes, batch_gt_masks, bat
     boxes as proposed by RPN. n_proposals here is determined by batch_size * POST_NMS_ROIS.
     :param mrcnn_class_logits: (n_proposals, n_classes)
     :param batch_gt_boxes: list over batch elements. Each element is a list over the corresponding roi target coordinates.
-    :param batch_gt_masks: list over batch elements. Each element is binary mask of shape (n_gt_rois, y, x, (z), c)
+    :param batch_gt_masks: list over batch elements. Each element is binary mask of shape (n_gt_rois, c, y, x, (z))
     :param batch_gt_class_ids: list over batch elements. Each element is a list over the corresponding roi target labels.
         if no classes predicted (only fg/bg from RPN): expected as pseudo classes [0, 1] for bg, fg.
     :param batch_gt_regressions: list over b elements. Each element is a regression target vector. if None--> pseudo
@@ -729,7 +730,6 @@ def loss_example_mining(cf, batch_proposals, batch_gt_boxes, batch_gt_masks, bat
     else:
         h, w, z = cf.patch_size
         scale = torch.from_numpy(np.array([h, w, h, w, z, z])).float().cuda()
-
 
     positive_count = 0
     negative_count = 0
@@ -803,23 +803,26 @@ def loss_example_mining(cf, batch_proposals, batch_gt_boxes, batch_gt_masks, bat
             deltas = box_refinement(positive_rois, roi_gt_boxes)
             deltas /= std_dev
 
-            assert gt_masks[roi_gt_box_assignment].shape[-1] == 1
-            roi_masks = gt_masks[roi_gt_box_assignment].unsqueeze(1).squeeze(-1)
-
+            roi_masks = gt_masks[roi_gt_box_assignment]
+            #print("roi_masks[b] in ex mining pre align", roi_masks.unique(return_counts=True))
+            assert roi_masks.shape[1] == 1, "gt masks have more than one channel --> is this desired?"
             # Compute mask targets
             boxes = positive_rois
             box_ids = torch.arange(roi_masks.shape[0]).cuda().unsqueeze(1).float()
 
             if len(cf.mask_shape) == 2:
-                # todo what are the dims of roi_masks? (n_matched_boxes_with_gts, 1 (dummy channel dim), y,x, c (WHY?))
+                y_exp, x_exp = roi_masks.shape[2:]  # exp = expansion
+                boxes.mul_(torch.tensor([y_exp, x_exp, y_exp, x_exp], dtype=torch.float32).cuda())
                 masks = roi_align.roi_align_2d(roi_masks,
                                                torch.cat((box_ids, boxes), dim=1),
                                                cf.mask_shape)
             else:
+                y_exp, x_exp, z_exp = roi_masks.shape[2:]  # exp = expansion
+                boxes.mul_(torch.tensor([y_exp, x_exp, y_exp, x_exp, z_exp, z_exp], dtype=torch.float32).cuda())
                 masks = roi_align.roi_align_3d(roi_masks,
                                                torch.cat((box_ids, boxes), dim=1),
                                                cf.mask_shape)
-
+            #print("roi_masks[b] in ex mining POST align", masks.unique(return_counts=True))
 
             masks = masks.squeeze(1)
             # Threshold mask pixels at 0.5 to have GT masks be 0 or 1 to use with

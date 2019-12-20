@@ -38,7 +38,7 @@ class Configs(DefaultConfigs):
 
         self.root_dir = '/home/gregor/networkdrives/E130-Personal/Goetz/Datenkollektive/Lungendaten/Nodules_LIDC_IDRI'
         self.raw_data_dir = '{}/new_nrrd'.format(self.root_dir)
-        self.pp_dir = '/mnt/HDD2TB/Documents/data/lidc/pp_20190805'
+        self.pp_dir = '/mnt/HDD2TB/Documents/data/lidc/pp_20191219_dev'
         # 'merged' for one gt per image, 'single_annotator' for four gts per image.
         self.gts_to_produce = ["single_annotator", "merged"]
 
@@ -50,7 +50,7 @@ class Configs(DefaultConfigs):
 
         # path to preprocessed data.
         #self.pp_name = 'pp_20190318'
-        self.pp_name = 'pp_20190805'
+        self.pp_name = 'pp_20191219_dev'
 
         self.input_df_name = 'info_df.pickle'
         self.data_sourcedir = '/mnt/HDD2TB/Documents/data/lidc/{}/'.format(self.pp_name)
@@ -61,7 +61,7 @@ class Configs(DefaultConfigs):
             self.data_sourcedir = '/datasets/data_ramien/lidc/{}_npz/'.format(self.pp_name)
 
         # one out of ['mrcnn', 'retina_net', 'retina_unet', 'detection_fpn'].
-        self.model = 'retina_net'
+        self.model = 'mrcnn'
         self.model_path = 'models/{}.py'.format(self.model if not 'retina' in self.model else 'retina_net')
         self.model_path = os.path.join(self.source_dir, self.model_path)
 

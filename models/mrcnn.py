@@ -607,7 +607,6 @@ class net(nn.Module):
 
         return results_dict
 
-
     def train_forward(self, batch, is_validation=False):
         """
         train method (also used for validation monitoring). wrapper around forward pass of network. prepares input data
@@ -717,8 +716,8 @@ class net(nn.Module):
         return_masks = self.cf.return_masks_in_val if is_validation else self.cf.return_masks_in_train
         results_dict = self.get_results(img.shape, detections, detection_masks, box_results_list,
                                         return_masks=return_masks)
-
-        #results_dict['seg_preds'] = results_dict['seg_preds'].argmax(axis=1).astype('uint8')[:,np.newaxis]
+        #import IPython; IPython.embed()
+        results_dict['seg_preds'] = results_dict['seg_preds'].argmax(axis=1).astype('uint8')[:,np.newaxis]
         if 'dice' in self.cf.metrics:
             results_dict['batch_dices'] = mutils.dice_per_batch_and_class(
                 results_dict['seg_preds'], batch["seg"], self.cf.num_seg_classes, convert_to_ohe=True)
@@ -730,6 +729,7 @@ class net(nn.Module):
         results_dict['rg_loss'] = mrcnn_regressions_loss.item()
         results_dict['rpn_class_loss'] = rpn_class_loss.item()
         results_dict['rpn_bbox_loss'] = rpn_bbox_loss.item()
+        #print("mask loss", results_dict["mask_loss"])
         return results_dict
 
 

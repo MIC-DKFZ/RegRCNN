@@ -96,8 +96,8 @@ class Configs(DefaultConfigs):
 
         self.info_df_name = 'info_df.pickle'
 
-        # one out of ['mrcnn', 'retina_net', 'retina_unet', 'detection_unet', 'ufrcnn', 'detection_fpn'].
-        self.model = 'retina_unet'
+        # one out of ['mrcnn', 'retina_net', 'retina_unet', 'detection_unet', 'detection_fpn'].
+        self.model = 'mrcnn'
         self.model_path = 'models/{}.py'.format(self.model if not 'retina' in self.model else 'retina_net')
         self.model_path = os.path.join(self.source_dir, self.model_path)
 
@@ -117,7 +117,7 @@ class Configs(DefaultConfigs):
         self.start_filts = 48 if self.dim == 2 else 18
         self.end_filts = self.start_filts * 4 if self.dim == 2 else self.start_filts * 2
         self.res_architecture = 'resnet50' # 'resnet101' , 'resnet50'
-        self.norm = 'instance_norm' # one of None, 'instance_norm', 'batch_norm'
+        self.norm = None #'instance_norm' # one of None, 'instance_norm', 'batch_norm'
         self.relu = 'relu'
         # one of 'xavier_uniform', 'xavier_normal', or 'kaiming_normal', None (=default = 'kaiming_uniform')
         self.weight_init = None

@@ -503,6 +503,7 @@ def pyramid_roi_align(feature_maps, rois, pool_size, pyramid_levels, dim):
             # remap to feature map coordinate system
             y_exp, x_exp = fmap_shapes[level_ix][2:]  # exp = expansion
             level_boxes.mul_(torch.tensor([y_exp, x_exp, y_exp, x_exp], dtype=torch.float32).cuda())
+            level_boxes.mul_(torch.tensor([y_exp, x_exp, y_exp, x_exp], dtype=torch.float32).cuda())
             pooled_features = roi_align.roi_align_2d(feature_maps[level_ix],
                                                      torch.cat((ind.unsqueeze(1).float(), level_boxes), dim=1),
                                                      pool_size)

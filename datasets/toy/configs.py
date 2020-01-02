@@ -331,7 +331,7 @@ class Configs(DefaultConfigs):
 
     def add_det_fpn_configs(self):
 
-      self.learning_rate = [5 * 1e-4] * self.num_epochs
+      self.learning_rate = [1 * 1e-4] * self.num_epochs
       self.dynamic_lr_scheduling = True
       self.scheduling_criterion = 'torch_loss'
       self.scheduling_mode = 'min' if "loss" in self.scheduling_criterion else 'max'
@@ -352,7 +352,7 @@ class Configs(DefaultConfigs):
 
     def add_det_unet_configs(self):
 
-      self.learning_rate = [5 * 1e-4] * self.num_epochs
+      self.learning_rate = [1 * 1e-4] * self.num_epochs
       self.dynamic_lr_scheduling = True
       self.scheduling_criterion = "torch_loss"
       self.scheduling_mode = 'min' if "loss" in self.scheduling_criterion else 'max'

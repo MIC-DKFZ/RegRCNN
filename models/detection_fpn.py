@@ -41,7 +41,7 @@ class net(nn.Module):
 
         # set operate_stride1=True to generate a unet-like FPN.)
         self.fpn = backbone.FPN(cf, conv=conv_gen, relu_enc=cf.relu, operate_stride1=True)
-        self.conv_final = conv_gen(cf.end_filts, cf.num_seg_classes, ks=1, pad=0, norm=cf.norm, relu=None)
+        self.conv_final = conv_gen(cf.end_filts, cf.num_seg_classes, ks=1, pad=0, norm=None, relu=None)
 
         #initialize parameters
         if self.cf.weight_init=="custom":

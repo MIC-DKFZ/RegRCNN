@@ -319,7 +319,7 @@ class net(nn.Module):
         self.up5 = up(cf.init_filts*4,  cf.init_filts*2,  cf.kernel_size, pad=pad, relu=cf.relu)
         self.up6 = up(cf.init_filts*2,  cf.init_filts,    cf.kernel_size, pad=pad, relu=cf.relu)
         
-        self.seg = self.c_gen(cf.init_filts, cf.num_seg_classes, 1, norm=None, relu=None) #TODO maybe apply norm too?
+        self.seg = self.c_gen(cf.init_filts, cf.num_seg_classes, 1, norm=None, relu=None)
 
 
         # initialize parameters

@@ -97,7 +97,7 @@ class Configs(DefaultConfigs):
         self.info_df_name = 'info_df.pickle'
 
         # one out of ['mrcnn', 'retina_net', 'retina_unet', 'detection_unet', 'ufrcnn', 'detection_fpn'].
-        self.model = 'mrcnn'
+        self.model = 'retina_unet'
         self.model_path = 'models/{}.py'.format(self.model if not 'retina' in self.model else 'retina_net')
         self.model_path = os.path.join(self.source_dir, self.model_path)
 
@@ -131,7 +131,7 @@ class Configs(DefaultConfigs):
 
         self.num_epochs = 32
         self.num_train_batches = 120 if self.dim == 2 else 80
-        self.batch_size = 16 if self.dim == 2 else 8
+        self.batch_size = 12 if self.dim == 2 else 8
 
         self.n_cv_splits = 4
         # select modalities from preprocessed data
@@ -331,7 +331,7 @@ class Configs(DefaultConfigs):
 
     def add_det_fpn_configs(self):
 
-      self.learning_rate = [5 * 1e-4] * self.num_epochs
+      self.learning_rate = [1 * 1e-4] * self.num_epochs
       self.dynamic_lr_scheduling = True
       self.scheduling_criterion = 'torch_loss'
       self.scheduling_mode = 'min' if "loss" in self.scheduling_criterion else 'max'
@@ -352,7 +352,7 @@ class Configs(DefaultConfigs):
 
     def add_det_unet_configs(self):
 
-      self.learning_rate = [5 * 1e-4] * self.num_epochs
+      self.learning_rate = [1 * 1e-4] * self.num_epochs
       self.dynamic_lr_scheduling = True
       self.scheduling_criterion = "torch_loss"
       self.scheduling_mode = 'min' if "loss" in self.scheduling_criterion else 'max'

@@ -101,7 +101,7 @@ class RoIAlign(nn.Module):
     Returns:
         output (Tensor[K, C, output_size[0], output_size[1](, output_size[2])])
     """
-    def __init__(self, output_size, spatial_scale, sampling_ratio):
+    def __init__(self, output_size, spatial_scale=1., sampling_ratio=-1):
         super(RoIAlign, self).__init__()
         self.output_size = output_size
         self.spatial_scale = spatial_scale

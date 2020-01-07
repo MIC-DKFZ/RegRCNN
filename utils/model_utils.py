@@ -503,8 +503,11 @@ def pyramid_roi_align(feature_maps, rois, pool_size, pyramid_levels, dim):
             # remap to feature map coordinate system
             y_exp, x_exp = fmap_shapes[level_ix][2:]  # exp = expansion
             level_boxes.mul_(torch.tensor([y_exp, x_exp, y_exp, x_exp], dtype=torch.float32).cuda())
-            level_boxes.mul_(torch.tensor([y_exp, x_exp, y_exp, x_exp], dtype=torch.float32).cuda())
-            pooled_features = roi_align.roi_align_2d(feature_maps[level_ix],
+            # pooled_features_own = roi_align.roi_align_2d(feature_maps[level_ix],
+            #                                          torch.cat((ind.unsqueeze(1).float(), level_boxes), dim=1),
+            #                                          pool_size)
+            import IPython; IPython.embed()
+            pooled_features = tv.ops.roi_align(feature_maps[level_ix],
                                                      torch.cat((ind.unsqueeze(1).float(), level_boxes), dim=1),
                                                      pool_size)
         else:
@@ -814,9 +817,13 @@ def loss_example_mining(cf, batch_proposals, batch_gt_boxes, batch_gt_masks, bat
             if len(cf.mask_shape) == 2:
                 y_exp, x_exp = roi_masks.shape[2:]  # exp = expansion
                 boxes.mul_(torch.tensor([y_exp, x_exp, y_exp, x_exp], dtype=torch.float32).cuda())
-                masks = roi_align.roi_align_2d(roi_masks,
-                                               torch.cat((box_ids, boxes), dim=1),
-                                               cf.mask_shape)
+                # masks = roi_align.roi_align_2d(roi_masks,
+                #                                torch.cat((box_ids, boxes), dim=1),
+                #                                cf.mask_shape)
+                #import IPython; IPython.embed()
+                masks = tv.ops.roi_align(roi_masks,
+                                         torch.cat((box_ids, boxes), dim=1),
+                                         cf.mask_shape)
             else:
                 y_exp, x_exp, z_exp = roi_masks.shape[2:]  # exp = expansion
                 boxes.mul_(torch.tensor([y_exp, x_exp, y_exp, x_exp, z_exp, z_exp], dtype=torch.float32).cuda())

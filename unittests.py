@@ -415,6 +415,26 @@ class CheckRoIAlignImplementation(unittest.TestCase):
         assert np.allclose(align_np, align_ext, rtol=1e-5,
                            atol=1e-8), "RoIAlign differences in numpy and CUDA implement"
 
+    def manual_check(self):
+        self.ra_ext = utils.import_module("ra_ext", 'custom_extensions/roi_align/roi_align.py')
+        exp = 5
+        pool_size = (2,2)
+        fmap = torch.arange(25).view(exp,exp).unsqueeze(0).unsqueeze(0).cuda().float()
+        boxes = (torch.tensor([[-1., -1., 5., 5.]]).cuda()/exp)
+        ind = torch.tensor([0.]).cuda()
+        y_exp, x_exp = fmap.shape[2:]  # exp = expansion
+        boxes.mul_(torch.tensor([y_exp, x_exp, y_exp, x_exp], dtype=torch.float32).cuda())
+        boxes = torch.cat((ind.unsqueeze(1), boxes), dim=1)
+        aligned = tv.ops.roi_align(fmap, boxes, output_size=pool_size)
+        # ra_object = self.ra_ext.RoIAlign(output_size=pool_size, spatial_scale=1.,)
+        # aligned_own = ra_object(fmap, boxes)
+        boxes_3d = torch.cat((boxes, torch.tensor([[-1.,1.]]).cuda()), dim=1)
+        fmap_3d = fmap.unsqueeze(dim=-1)
+        pool_size = (*pool_size,1)
+        ra_object = self.ra_ext.RoIAlign(output_size=pool_size, spatial_scale=1.,)
+        aligned_own_3d = ra_object(fmap_3d, boxes_3d)
+        return
+
     def test(self):
         # dynamically import module so that it doesn't affect other tests if import fails
         self.ra_ext = utils.import_module("ra_ext", 'custom_extensions/roi_align/roi_align.py')
@@ -462,6 +482,8 @@ class CheckRuntimeErrors(unittest.TestCase):
 if __name__=="__main__":
     stime = time.time()
 
+    t = CheckRoIAlignImplementation()
+    t.manual_check()
     unittest.main()
 
     mins, secs = divmod((time.time() - stime), 60)

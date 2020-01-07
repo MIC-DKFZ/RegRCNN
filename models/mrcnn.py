@@ -729,7 +729,7 @@ class net(nn.Module):
         results_dict['rg_loss'] = mrcnn_regressions_loss.item()
         results_dict['rpn_class_loss'] = rpn_class_loss.item()
         results_dict['rpn_bbox_loss'] = rpn_bbox_loss.item()
-        #print("mask loss", results_dict["mask_loss"])
+
         return results_dict
 
 

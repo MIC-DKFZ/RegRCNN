@@ -557,12 +557,13 @@ if __name__=="__main__":
     logger = utils.get_logger(cf.exp_dir)
     gens = get_train_generators(cf, logger)
     train_loader = gens['train']
-    for i in range(0):
+    for i in range(1):
         stime = time.time()
         print("producing training batch nr ", i)
         ex_batch = next(train_loader)
         times["train_batch"] = time.time() - stime
         #experiments/dev/dev_exbatch_{}.png".format(i)
+        print(ex_batch.keys())
         plg.view_batch(cf, ex_batch, out_file="experiments/dev/dev_exbatch_{}.png".format(i), show_gt_labels=True, vmin=0, show_info=False)
 
 

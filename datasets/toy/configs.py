@@ -97,7 +97,7 @@ class Configs(DefaultConfigs):
         self.info_df_name = 'info_df.pickle'
 
         # one out of ['mrcnn', 'retina_net', 'retina_unet', 'detection_unet', 'detection_fpn'].
-        self.model = 'retina_net'
+        self.model = 'retinau'
         self.model_path = 'models/{}.py'.format(self.model if not 'retina' in self.model else 'retina_net')
         self.model_path = os.path.join(self.source_dir, self.model_path)
 
@@ -114,7 +114,7 @@ class Configs(DefaultConfigs):
         # but, in principle, tasks could be combined (e.g., object classes and regression per class)
         self.prediction_tasks = ['class',]
 
-        self.start_filts = 48 if self.dim == 2 else 18
+        self.start_filts = 36 if self.dim == 2 else 18
         self.end_filts = self.start_filts * 4 if self.dim == 2 else self.start_filts * 2
         self.res_architecture = 'resnet50' # 'resnet101' , 'resnet50'
         self.norm = None #'instance_norm' # one of None, 'instance_norm', 'batch_norm'
@@ -130,7 +130,7 @@ class Configs(DefaultConfigs):
         #########################
 
         self.num_epochs = 32
-        self.num_train_batches = 120 if self.dim == 2 else 80
+        self.num_train_batches = 100 if self.dim == 2 else 80
         self.batch_size = 12 if self.dim == 2 else 8
 
         self.n_cv_splits = 4
@@ -155,7 +155,7 @@ class Configs(DefaultConfigs):
         self.observables_patient = []
         self.observables_rois = []
 
-        self.seed = 3 #for generating folds
+        self.seed = 3 # for generating folds
 
         #############################
         # Colors, Classes, Legends  #
@@ -407,7 +407,7 @@ class Configs(DefaultConfigs):
       # choose which pyramid levels to extract features from: P2: 0, P3: 1, P4: 2, P5: 3.
       self.pyramid_levels = [0, 1, 2, 3]
       # number of feature maps in rpn. typically lowered in 3D to save gpu-memory.
-      self.n_rpn_features = 512 if self.dim == 2 else 64
+      self.n_rpn_features = 128 if self.dim == 2 else 64
 
       # anchor ratios and strides per position in feature maps.
       self.rpn_anchor_ratios = [0.5, 1., 2.]

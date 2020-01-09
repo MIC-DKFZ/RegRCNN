@@ -33,8 +33,6 @@ import tqdm
 from custom_extensions.nms import nms
 from custom_extensions.roi_align import roi_align
 
-import torchvision as tv
-
 ############################################################
 #  Segmentation Processing
 ############################################################
@@ -436,7 +434,9 @@ def refine_proposals(rpn_pred_probs, rpn_pred_deltas, proposal_count, batch_anch
         batch_out_proposals.append(torch.cat((boxes, rpn_scores), 1).cpu().data.numpy())
         # normalize dimensions to range of 0 to 1.
         normalized_boxes = boxes / norm
-        assert torch.all(normalized_boxes <= 1), "normalized box coords >1 found"
+        where = normalized_boxes <=1
+        assert torch.all(where), "normalized box coords >1 found:\n {}\n".format(normalized_boxes[where])
+        #assert torch.all(normalized_boxes <= 1), "normalized box coords >1 found"
 
         # add again batch dimension
         batch_normalized_props.append(torch.cat((normalized_boxes, rpn_scores), 1).unsqueeze(0))
@@ -579,9 +579,9 @@ def roi_align_3d_numpy(input: np.ndarray, rois, output_size: tuple,
                                 for j in range(sampling_ratio_w):
                                     for k in range(sampling_ratio_d):
                                         loc_ijk = [
-                                            y1 + bin_iy * bin_height + (i + 0.5) * (bin_height / sampling_ratio_h),
-                                            x1 + bin_ix * bin_width + (j + 0.5) * (bin_width / sampling_ratio_w),
-                                            z1 + bin_iz * bin_depth + (k + 0.5) * (bin_depth / sampling_ratio_d)]
+                                            y1 + bin_iy * bin_height + (i + 0.5)* ((bin_height -1) / sampling_ratio_h),
+                                            x1 + bin_ix * bin_width + (j + 0.5) * ((bin_width -1) / sampling_ratio_w),
+                                            z1 + bin_iz * bin_depth + (k + 0.5) * ((bin_depth -1) / sampling_ratio_d)]
                                         # print("loc_ijk", loc_ijk)
                                         if not (np.any([c < -1.0 for c in loc_ijk]) or loc_ijk[0] > input.shape[2] or
                                                 loc_ijk[1] > input.shape[3] or loc_ijk[2] > input.shape[4]):
@@ -804,7 +804,6 @@ def loss_example_mining(cf, batch_proposals, batch_gt_boxes, batch_gt_masks, bat
             deltas /= std_dev
 
             roi_masks = gt_masks[roi_gt_box_assignment]
-            #print("roi_masks[b] in ex mining pre align", roi_masks.unique(return_counts=True))
             assert roi_masks.shape[1] == 1, "gt masks have more than one channel --> is this desired?"
             # Compute mask targets
             boxes = positive_rois
@@ -822,7 +821,6 @@ def loss_example_mining(cf, batch_proposals, batch_gt_boxes, batch_gt_masks, bat
                 masks = roi_align.roi_align_3d(roi_masks,
                                                torch.cat((box_ids, boxes), dim=1),
                                                cf.mask_shape)
-            #print("roi_masks[b] in ex mining POST align", masks.unique(return_counts=True))
 
             masks = masks.squeeze(1)
             # Threshold mask pixels at 0.5 to have GT masks be 0 or 1 to use with

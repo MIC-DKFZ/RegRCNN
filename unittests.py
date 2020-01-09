@@ -21,6 +21,7 @@ import pickle
 import time
 from multiprocessing import  Pool
 import subprocess
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -29,6 +30,7 @@ import torchvision as tv
 
 import tqdm
 
+import plotting as plg
 import utils.exp_utils as utils
 import utils.model_utils as mutils
 
@@ -329,7 +331,7 @@ class CheckNMSImplementation(unittest.TestCase):
             """need to wait until next pytorch release where they fixed nms on cpu (currently they have >= where it
             needs to be >.
             """
-            # keep_ops = tv.ops.nms(boxes, scores, threshold)
+            keep_ops = tv.ops.nms(boxes, scores, threshold)
             # self.assert_res_equality(keep_numpy, keep_ops, boxes, scores, tolerance=0, names=["np", "ops"])
             pass
 
@@ -387,18 +389,23 @@ class CheckRoIAlignImplementation(unittest.TestCase):
         return fmap, rois, pool_size
 
     def check_2d(self):
-
-        fmap, rois, pool_size = self.prepare(dim=2)
-        align_ops = tv.ops.roi_align(fmap, rois, pool_size)
-        loss_ops = align_ops.sum()
-        loss_ops.backward()
-
-        ra_object = self.ra_ext.RoIAlign(output_size=pool_size, spatial_scale=1., sampling_ratio=-1)
-        align_ext = ra_object(fmap, rois)
-        loss_ext = align_ext.sum()
-        loss_ext.backward()
-        assert (loss_ops == loss_ext), "sum of roialign ops and extension 2D diverges"
-        assert (align_ops == align_ext).all(), "ROIAlign failed 2D test"
+        """ check vs torchvision ops not possible as on purpose different approach.
+        :return:
+        """
+        raise NotImplementedError
+        # fmap, rois, pool_size = self.prepare(dim=2)
+        # ra_object = self.ra_ext.RoIAlign(output_size=pool_size, spatial_scale=1., sampling_ratio=-1)
+        # align_ext = ra_object(fmap, rois)
+        # loss_ext = align_ext.sum()
+        # loss_ext.backward()
+        #
+        # rois_swapped = [rois[0][:, [1,3,0,2]]]
+        # align_ops = tv.ops.roi_align(fmap, rois_swapped, pool_size)
+        # loss_ops = align_ops.sum()
+        # loss_ops.backward()
+        #
+        # assert (loss_ops == loss_ext), "sum of roialign ops and extension 2D diverges"
+        # assert (align_ops == align_ext).all(), "ROIAlign failed 2D test"
 
     def check_3d(self):
         fmap, rois, pool_size = self.prepare(dim=3)
@@ -415,12 +422,102 @@ class CheckRoIAlignImplementation(unittest.TestCase):
         assert np.allclose(align_np, align_ext, rtol=1e-5,
                            atol=1e-8), "RoIAlign differences in numpy and CUDA implement"
 
+    def specific_example_check(self):
+        # dummy input
+        self.ra_ext = utils.import_module("ra_ext", 'custom_extensions/roi_align/roi_align.py')
+        exp = 6
+        pool_size = (2,2)
+        fmap = torch.arange(exp**2).view(exp,exp).unsqueeze(0).unsqueeze(0).cuda().type(dtype=torch.float32)
+
+        boxes = torch.tensor([[1., 1., 5., 5.]]).cuda()/exp
+        ind = torch.tensor([0.]*len(boxes)).cuda().type(torch.float32)
+        y_exp, x_exp = fmap.shape[2:]  # exp = expansion
+        boxes.mul_(torch.tensor([y_exp, x_exp, y_exp, x_exp], dtype=torch.float32).cuda())
+        boxes = torch.cat((ind.unsqueeze(1), boxes), dim=1)
+        aligned_tv = tv.ops.roi_align(fmap, boxes, output_size=pool_size, sampling_ratio=-1)
+        aligned = self.ra_ext.roi_align_2d(fmap, boxes, output_size=pool_size, sampling_ratio=-1)
+
+        boxes_3d = torch.cat((boxes, torch.tensor([[-1.,1.]]*len(boxes)).cuda()), dim=1)
+        fmap_3d = fmap.unsqueeze(dim=-1)
+        pool_size = (*pool_size,1)
+        ra_object = self.ra_ext.RoIAlign(output_size=pool_size, spatial_scale=1.,)
+        aligned_3d = ra_object(fmap_3d, boxes_3d)
+
+        expected_res = torch.tensor([[[[10.5000, 12.5000],
+                                       [22.5000, 24.5000]]]]).cuda()
+        expected_res_3d = torch.tensor([[[[[10.5000],[12.5000]],
+                                          [[22.5000],[24.5000]]]]]).cuda()
+        assert torch.all(aligned==expected_res), "2D RoIAlign check vs. specific example failed. res: {}\n expected: {}\n".format(aligned, expected_res)
+        assert torch.all(aligned_3d==expected_res_3d), "3D RoIAlign check vs. specific example failed. res: {}\n expected: {}\n".format(aligned_3d, expected_res_3d)
+
+    def manual_check(self):
+        """ print examples from a toy batch to file.
+        :return:
+        """
+        self.ra_ext = utils.import_module("ra_ext", 'custom_extensions/roi_align/roi_align.py')
+        # actual mrcnn mask input
+        from datasets.toy import configs
+        cf = configs.Configs()
+        cf.exp_dir = "datasets/toy/experiments/dev/"
+        cf.plot_dir = cf.exp_dir + "plots"
+        os.makedirs(cf.exp_dir, exist_ok=True)
+        cf.fold = 0
+        cf.n_workers = 1
+        logger = utils.get_logger(cf.exp_dir)
+        data_loader = utils.import_module('data_loader', os.path.join("datasets", "toy", 'data_loader.py'))
+        batch_gen = data_loader.get_train_generators(cf, logger=logger)
+        batch = next(batch_gen['train'])
+        roi_mask = np.zeros((1, 320, 200))
+        bb_target = (np.array([50, 40, 90, 120])).astype("int")
+        roi_mask[:, bb_target[0]+1:bb_target[2]+1, bb_target[1]+1:bb_target[3]+1] = 1.
+        #batch = {"roi_masks": np.array([np.array([roi_mask, roi_mask]), np.array([roi_mask])]), "bb_target": [[bb_target, bb_target + 25], [bb_target-20]]}
+        #batch_boxes_cor = [torch.tensor(batch_el_boxes).cuda().float() for batch_el_boxes in batch_cor["bb_target"]]
+        batch_boxes = [torch.tensor(batch_el_boxes).cuda().float() for batch_el_boxes in batch["bb_target"]]
+        #import IPython; IPython.embed()
+        for b in range(len(batch_boxes)):
+            roi_masks = batch["roi_masks"][b]
+            #roi_masks_cor = batch_cor["roi_masks"][b]
+            if roi_masks.sum()>0:
+                boxes = batch_boxes[b]
+                roi_masks = torch.tensor(roi_masks).cuda().type(dtype=torch.float32)
+                box_ids = torch.arange(roi_masks.shape[0]).cuda().unsqueeze(1).type(dtype=torch.float32)
+                masks = tv.ops.roi_align(roi_masks, [boxes], cf.mask_shape)
+                masks = masks.squeeze(1)
+                masks = torch.round(masks)
+                masks_own = self.ra_ext.roi_align_2d(roi_masks, torch.cat((box_ids, boxes), dim=1), cf.mask_shape)
+                boxes = boxes.type(torch.int)
+                #print("check roi mask", roi_masks[0, 0, boxes[0][0]:boxes[0][2], boxes[0][1]:boxes[0][3]].sum(), (boxes[0][2]-boxes[0][0]) * (boxes[0][3]-boxes[0][1]))
+                #print("batch masks", batch["roi_masks"])
+                masks_own = masks_own.squeeze(1)
+                masks_own = torch.round(masks_own)
+                #import IPython; IPython.embed()
+                for mix, mask in enumerate(masks):
+                    fig = plg.plt.figure()
+                    ax = fig.add_subplot()
+                    ax.imshow(roi_masks[mix][0].cpu().numpy(), cmap="gray", vmin=0.)
+                    ax.axis("off")
+                    y1, x1, y2, x2 = boxes[mix]
+                    bbox = plg.mpatches.Rectangle((x1, y1), x2-x1, y2-y1, linewidth=0.9, edgecolor="c", facecolor='none')
+                    ax.add_patch(bbox)
+                    x1, y1, x2, y2 = boxes[mix]
+                    bbox = plg.mpatches.Rectangle((x1, y1), x2 - x1, y2 - y1, linewidth=0.9, edgecolor="r",
+                                                  facecolor='none')
+                    ax.add_patch(bbox)
+                    debug_dir = Path("/home/gregor/Documents/regrcnn/datasets/toy/experiments/debugroial")
+                    os.makedirs(debug_dir, exist_ok=True)
+                    plg.plt.savefig(debug_dir/"mask_b{}_{}.png".format(b, mix))
+                    plg.plt.imsave(debug_dir/"mask_b{}_{}_pooled_tv.png".format(b, mix), mask.cpu().numpy(), cmap="gray", vmin=0.)
+                    plg.plt.imsave(debug_dir/"mask_b{}_{}_pooled_own.png".format(b, mix), masks_own[mix].cpu().numpy(), cmap="gray", vmin=0.)
+        return
+
     def test(self):
         # dynamically import module so that it doesn't affect other tests if import fails
         self.ra_ext = utils.import_module("ra_ext", 'custom_extensions/roi_align/roi_align.py')
 
+        self.specific_example_check()
+
         # 2d test
-        self.check_2d()
+        #self.check_2d()
 
         # 3d test
         self.check_3d()
@@ -462,7 +559,9 @@ class CheckRuntimeErrors(unittest.TestCase):
 if __name__=="__main__":
     stime = time.time()
 
-    unittest.main()
+    t = CheckRoIAlignImplementation()
+    t.manual_check()
+    #unittest.main()
 
     mins, secs = divmod((time.time() - stime), 60)
     h, mins = divmod(mins, 60)

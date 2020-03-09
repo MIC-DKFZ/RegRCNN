@@ -159,7 +159,7 @@ class VerifyLIDCSAIntegrity(unittest.TestCase):
         assert len(faulty_cases)==0, "there was a faulty case in data set {}.\ncheck {}".format(pp_dir, findings_file)
 
     def test(self):
-        pp_root = "/mnt/HDD2TB/Documents/data/"
+        pp_root = "/media/gregor/HDD2TB/Documents/data/"
         pp_dir = "lidc/pp_20190805"
         gt_dir = os.path.join(pp_root, pp_dir, "patient_gts_sa")
         self.check_sa_gts(gt_dir, check_meta_files=True, check_info_df=False, pid_subset=None)  # ["0811a", "0812a"])
@@ -210,8 +210,8 @@ class CompareSegGTs(unittest.TestCase):
         assert min_dice > 1-1e5, "compared seg gts have insufficient minimum mean dice overlap of {}".format(min_dice)
 
     def test(self):
-        ref_path = '/mnt/HDD2TB/Documents/data/prostate/data_t2_250519_ps384_gs6071'
-        comp_paths = ['/mnt/HDD2TB/Documents/data/prostate/data_t2_190419_ps384_gs6071', ]
+        ref_path = '/media/gregor/HDD2TB/Documents/data/prostate/data_t2_250519_ps384_gs6071'
+        comp_paths = ['/media/gregor/HDD2TB/Documents/data/prostate/data_t2_190419_ps384_gs6071', ]
         paths = self.group_seg_paths(ref_path, comp_paths)
         self.iterate_files(paths)
 

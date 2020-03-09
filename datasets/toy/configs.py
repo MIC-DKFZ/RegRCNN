@@ -34,12 +34,12 @@ class Configs(DefaultConfigs):
         #         Prepro        #
         #########################
 
-        self.pp_rootdir = os.path.join('/mnt/HDD2TB/Documents/data/toy', "cyl1ps_dev")
+        self.pp_rootdir = os.path.join('/media/gregor/HDD2TB/data/toy', "cyl1ps_dev")
         self.pp_npz_dir = self.pp_rootdir+"_npz"
 
         self.pre_crop_size = [320,320,8] #y,x,z; determines pp data shape (2D easily implementable, but only 3D for now)
         self.min_2d_radius = 6 #in pixels
-        self.n_train_samples, self.n_test_samples = 80, 80
+        self.n_train_samples, self.n_test_samples = 320, 80
 
         # not actually real one-hot encoding (ohe) but contains more info: roi-overlap only within classes.
         self.pp_create_ohe_seg = False
@@ -85,10 +85,10 @@ class Configs(DefaultConfigs):
         #         I/O           #
         #########################
 
-        self.data_sourcedir = '/mnt/HDD2TB/Documents/data/toy/cyl1ps_exact'
+        self.data_sourcedir = '/media/gregor/HDD2TB/data/toy/cyl1ps_dev'
 
         if server_env:
-            self.data_sourcedir = '/datasets/data_ramien/toy/cyl1ps_exact_npz'
+            self.data_sourcedir = '/datasets/data_ramien/toy/cyl1ps_dev_npz'
 
 
         self.test_data_sourcedir = os.path.join(self.data_sourcedir, 'test')
@@ -112,7 +112,7 @@ class Configs(DefaultConfigs):
         # 'class', 'regression', 'regression_bin', 'regression_ken_gal'
         # currently only tested mode is a single-task at a time (i.e., only one task in below list)
         # but, in principle, tasks could be combined (e.g., object classes and regression per class)
-        self.prediction_tasks = ['class',]
+        self.prediction_tasks = ['class', 'regression']
 
         self.start_filts = 48 if self.dim == 2 else 18
         self.end_filts = self.start_filts * 4 if self.dim == 2 else self.start_filts * 2
@@ -274,7 +274,7 @@ class Configs(DefaultConfigs):
         self.held_out_test_set = True
         self.max_test_patients = "all"  # number or "all" for all
 
-        self.test_against_exact_gt = not 'exact' in self.data_sourcedir
+        self.test_against_exact_gt = True # only True implemented
         self.val_against_exact_gt = False # True is an unrealistic --> irrelevant scenario.
         self.report_score_level = ['rois']  # 'patient' or 'rois' (incl)
         self.patient_class_of_interest = 1

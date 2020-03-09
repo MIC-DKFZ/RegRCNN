@@ -20,6 +20,7 @@ import plotting as plg
 
 import numpy as np
 import os
+from multiprocessing import Lock
 from collections import OrderedDict
 import pandas as pd
 import pickle
@@ -123,41 +124,26 @@ class BatchGenerator(dutils.BatchGenerator):
     :param batch_size: number of patients to sample for the batch
     :return dictionary containing the batch data (b, c, x, y, (z)) / seg (b, 1, x, y, (z)) / pids / class_target
     """
-    def __init__(self, cf, data, sample_pids_w_replace=True):
-        super(BatchGenerator, self).__init__(cf, data)
+    def __init__(self, cf, data, sample_pids_w_replace=True, max_batches=None, raise_stop_iteration=False, seed=0):
+        super(BatchGenerator, self).__init__(cf, data, sample_pids_w_replace=sample_pids_w_replace,
+                                             max_batches=max_batches, raise_stop_iteration=raise_stop_iteration,
+                                             seed=seed)
 
         self.chans = cf.channels if cf.channels is not None else np.index_exp[:]
         assert hasattr(self.chans, "__iter__"), "self.chans has to be list-like to maintain dims when slicing"
 
-
-        self.sample_pids_w_replace = sample_pids_w_replace
-        self.eligible_pids = list(self._data.keys())
-
         self.crop_margin = np.array(self.cf.patch_size) / 8.  # min distance of ROI center to edge of cropped_patch.
         self.p_fg = 0.5
         self.empty_samples_max_ratio = 0.6
-        self.random_count = int(cf.batch_random_ratio * cf.batch_size)
 
         self.balance_target_distribution(plot=sample_pids_w_replace)
         self.stats = {"roi_counts": np.zeros((len(self.unique_ts),), dtype='uint32'), "empty_samples_count": 0}
 
-
     def generate_train_batch(self):
         # everything done in here is per batch
         # print statements in here get confusing due to multithreading
-        if self.sample_pids_w_replace:
-            # fully random patients
-            batch_patient_ids = list(np.random.choice(self.dataset_pids, size=self.random_count, replace=False))
-            # target-balanced patients
-            batch_patient_ids += list(np.random.choice(
-                self.dataset_pids, size=self.batch_size - self.random_count, replace=False, p=self.p_probs))
-        else:
-            batch_patient_ids = np.random.choice(self.eligible_pids, size=self.batch_size,
-                                                 replace=False)
-        if self.sample_pids_w_replace == False:
-            self.eligible_pids = [pid for pid in self.eligible_pids if pid not in batch_patient_ids]
-            if len(self.eligible_pids) < self.batch_size:
-                self.eligible_pids = self.dataset_pids
+
+        batch_pids = self.get_batch_pids()
 
         batch_data, batch_segs, batch_patient_targets = [], [], []
         batch_roi_items = {name: [] for name in self.cf.roi_items}
@@ -166,7 +152,7 @@ class BatchGenerator(dutils.BatchGenerator):
         batch_roi_counts, empty_samples_count = np.zeros((len(self.unique_ts),), dtype='uint32'), 0
 
         for b in range(self.batch_size):
-            patient = self._data[batch_patient_ids[b]]
+            patient = self._data[batch_pids[b]]
 
             data = np.load(patient['data'], mmap_mode='r').astype('float16')[np.newaxis]
             seg =  np.load(patient['seg'], mmap_mode='r').astype('uint8')
@@ -268,7 +254,7 @@ class BatchGenerator(dutils.BatchGenerator):
                 empty_samples_count += 1
 
         batch = {'data': np.array(batch_data), 'seg': np.array(batch_segs).astype('uint8'),
-                 'pid': batch_patient_ids,
+                 'pid': batch_pids,
                  'roi_counts': batch_roi_counts, 'empty_samples_count': empty_samples_count}
         for key,val in batch_roi_items.items(): #extend batch dic by entries of observables dic
             batch[key] = np.array(val)
@@ -557,13 +543,12 @@ if __name__=="__main__":
     logger = utils.get_logger(cf.exp_dir)
     gens = get_train_generators(cf, logger)
     train_loader = gens['train']
-    for i in range(1):
+    for i in range(0):
         stime = time.time()
         print("producing training batch nr ", i)
         ex_batch = next(train_loader)
         times["train_batch"] = time.time() - stime
         #experiments/dev/dev_exbatch_{}.png".format(i)
-        print(ex_batch.keys())
         plg.view_batch(cf, ex_batch, out_file="experiments/dev/dev_exbatch_{}.png".format(i), show_gt_labels=True, vmin=0, show_info=False)
 
 
@@ -576,7 +561,6 @@ if __name__=="__main__":
         #"experiments/dev/dev_exvalbatch_{}.png"
         plg.view_batch(cf, ex_batch, out_file="experiments/dev/dev_exvalbatch_{}.png".format(i), show_gt_labels=True, vmin=0, show_info=True)
         times["val_plot"] = time.time() - stime
-    import IPython; IPython.embed()
     #
     test_loader = get_test_generator(cf, logger)["test"]
     stime = time.time()

@@ -71,8 +71,9 @@ class ToyGenerator(object):
         os.makedirs(out_dir, exist_ok=True)
 
         n_samples = self.n_train if "train" in split else self.n_test
+        req_exact_gt = "test" in split
 
-        self.mp_args+= [[out_dir, self.last_s_id+running_id] for running_id in range(n_samples)]
+        self.mp_args += [[out_dir, self.last_s_id+running_id, req_exact_gt] for running_id in range(n_samples)]
         self.last_s_id+= n_samples
 
     def generate_sample_radii(self, class_ids, shapes):
@@ -272,7 +273,7 @@ class ToyGenerator(object):
         :param args: out_dir: directory where to save sample, s_id: id of the sample.
         :return: specs that identify this single created image
         """
-        out_dir, s_id = args
+        out_dir, s_id, req_exact_gt = args
 
         print('processing {} {}'.format(out_dir, s_id))
         img = np.random.normal(loc=0.0, scale=self.cf.noise_scale, size=self.sample_size)
@@ -327,14 +328,21 @@ class ToyGenerator(object):
                 assert np.all(np.flatnonzero(img>0) == np.flatnonzero(seg>0))
                 assert np.all(np.array(regress_targets).flatten()==np.array(undistorted_rg_targets).flatten())
 
+        # save the img
         out_path = os.path.join(out_dir, '{}.npy'.format(s_id))
-        np.save(out_path, img.astype('float16')); np.save(os.path.join(out_dir, '{}_seg.npy'.format(s_id)), seg)
-        if hasattr(self.cf, 'ambiguities') and \
-            np.any([hasattr(label, "gt_distortion") and len(label.gt_distortion)>0 for label in self.class_id2label.values()]):
-            undist_out_path = os.path.join(out_dir, '{}_exact_seg.npy'.format(s_id))
+        np.save(out_path, img.astype('float16'))
+
+        # exact GT
+        if req_exact_gt:
             if not self.cf.pp_create_ohe_seg:
                 undistorted_seg = undistorted_seg.max(axis=0)
-            np.save(undist_out_path, undistorted_seg)
+            np.save(os.path.join(out_dir, '{}_exact_seg.npy'.format(s_id)), undistorted_seg)
+        else:
+            # if hasattr(self.cf, 'ambiguities') and \
+            #     np.any([hasattr(label, "gt_distortion") and len(label.gt_distortion)>0 for label in self.class_id2label.values()]):
+            # save (evtly) distorted GT
+            np.save(os.path.join(out_dir, '{}_seg.npy'.format(s_id)), seg)
+
 
         return [out_dir, out_path, class_ids, regress_targets, fg_slices, undistorted_rg_targets, str(s_id)]
 
@@ -342,14 +350,17 @@ class ToyGenerator(object):
         """ Create whole training and test set, save to files under given directory cf.out_dir.
         :param processes: nr of parallel processes.
         """
-        print('starting creation of {} images'.format(len(self.mp_args)))
+
+
+        print('starting creation of {} images.'.format(len(self.mp_args)))
         shutil.copyfile("configs.py", os.path.join(self.cf.pp_rootdir, 'applied_configs.py'))
         pool = Pool(processes=processes)
-        imgs_info = pool.map(self.create_sample, self.mp_args, chunksize=1)
+        imgs_info = pool.map(self.create_sample, self.mp_args)
+        imgs_info = [img for img in imgs_info if img is not None]
         pool.close()
         pool.join()
-        imgs_info = [img for img in imgs_info if img is not None]
         print("created a total of {} samples.".format(len(imgs_info)))
+
         self.df = pd.DataFrame.from_records(imgs_info, columns=['out_dir', 'path', 'class_ids', 'regression_vectors',
                                                                 'fg_slices', 'undistorted_rg_vectors', 'pid'])
 
@@ -379,7 +390,7 @@ if __name__ == '__main__':
 
     toy_gen = ToyGenerator(cf)
     toy_gen.create_sets()
-    #toy_gen.convert_copy_npz()
+    toy_gen.convert_copy_npz()
 
 
     mins, secs = divmod((time.time() - total_stime), 60)

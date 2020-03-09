@@ -16,7 +16,7 @@
 import plotting as plg
 
 import os
-from multiprocessing import Pool
+from multiprocessing import Pool, Lock
 import pickle
 import warnings
 
@@ -307,14 +307,30 @@ class BatchGenerator(SlimDataLoaderBase):
     :return dictionary containing the batch data / seg / pids as lists; the augmenter will later concatenate them into an array.
     """
 
-    def __init__(self, cf, data, n_batches=None):
-        super(BatchGenerator, self).__init__(data, cf.batch_size, n_batches)
+    def __init__(self, cf, data, sample_pids_w_replace, max_batches=None, raise_stop_iteration=False, n_threads=None, seed=0):
+        if n_threads is None:
+            n_threads = cf.n_workers
+        super(BatchGenerator, self).__init__(data, cf.batch_size, number_of_threads_in_multithreaded=n_threads)
         self.cf = cf
+        self.random_count = int(cf.batch_random_ratio * cf.batch_size)
         self.plot_dir = os.path.join(self.cf.plot_dir, 'train_generator')
+        self.max_batches = max_batches
+        self.raise_stop = raise_stop_iteration
+        self.thread_id = 0
+        self.batches_produced = 0
 
         self.dataset_length = len(self._data)
         self.dataset_pids = list(self._data.keys())
-        self.eligible_pids = self.dataset_pids
+        self.rgen = np.random.RandomState(seed=seed)
+        self.eligible_pids = self.rgen.permutation(self.dataset_pids.copy())
+        self.eligible_pids = np.array_split(self.eligible_pids, self.number_of_threads_in_multithreaded)
+        self.eligible_pids = sorted(self.eligible_pids, key=len, reverse=True)
+        self.sample_pids_w_replace = sample_pids_w_replace
+        if not self.sample_pids_w_replace:
+            assert len(self.dataset_pids) / self.number_of_threads_in_multithreaded >= self.batch_size, \
+                "at least one batch needed per thread. dataset size: {}, n_threads: {}, batch_size: {}.".format(
+                    len(self.dataset_pids), self.number_of_threads_in_multithreaded, self.batch_size)
+            self.lock = Lock()
 
         self.stats = {"roi_counts": np.zeros((self.cf.num_classes,), dtype='uint32'), "empty_samples_count": 0}
 
@@ -324,6 +340,14 @@ class BatchGenerator(SlimDataLoaderBase):
         else:
             self.balance_target = "class_targets"
         self.targets = {k:v[self.balance_target] for (k,v) in self._data.items()}
+
+    def set_thread_id(self, thread_id):
+        self.thread_ids = self.eligible_pids[thread_id]
+        self.thread_id  = thread_id
+
+    def reset(self):
+        self.batches_produced = 0
+        self.thread_ids = self.rgen.permutation(self.eligible_pids[self.thread_id])
 
     def balance_target_distribution(self, plot=False):
         """
@@ -359,13 +383,38 @@ class BatchGenerator(SlimDataLoaderBase):
                                                                  "train_gen_distr_"+str(self.cf.fold)+".png"))
         return self.p_probs
 
+    def get_batch_pids(self):
+        if self.max_batches is not None and self.batches_produced * self.number_of_threads_in_multithreaded \
+                + self.thread_id >= self.max_batches:
+            self.reset()
+            raise StopIteration
+
+        if self.sample_pids_w_replace:
+            # fully random patients
+            batch_pids = list(np.random.choice(self.dataset_pids, size=self.random_count, replace=False))
+            # target-balanced patients
+            batch_pids += list(np.random.choice(
+                self.dataset_pids, size=self.batch_size - self.random_count, replace=False, p=self.p_probs))
+        else:
+            with self.lock:
+                if len(self.thread_ids) == 0:
+                    if self.raise_stop:
+                        self.reset()
+                        raise StopIteration
+                    else:
+                        self.thread_ids = self.rgen.permutation(self.eligible_pids[self.thread_id])
+                batch_pids = self.thread_ids[:self.batch_size]
+                # batch_pids = np.random.choice(self.thread_ids, size=self.batch_size, replace=False)
+                self.thread_ids = [pid for pid in self.thread_ids if pid not in batch_pids]
+        self.batches_produced += 1
+
+        return batch_pids
 
     def generate_train_batch(self):
         # to be overriden by child
         # everything done in here is per batch
         # print statements in here get confusing due to multithreading
-
-        return
+        raise NotImplementedError
 
     def print_stats(self, logger=None, file=None, plot_file=None, plot=True):
         print_f = utils.CombinedPrinter(logger, file)

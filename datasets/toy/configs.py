@@ -34,12 +34,12 @@ class Configs(DefaultConfigs):
         #         Prepro        #
         #########################
 
-        self.pp_rootdir = os.path.join('/mnt/HDD2TB/Documents/data/toy', "cyl1ps_dev_exact")
+        self.pp_rootdir = os.path.join('/media/gregor/HDD2TB/data/toy', "cyl1ps_dev")
         self.pp_npz_dir = self.pp_rootdir+"_npz"
 
         self.pre_crop_size = [320,320,8] #y,x,z; determines pp data shape (2D easily implementable, but only 3D for now)
         self.min_2d_radius = 6 #in pixels
-        self.n_train_samples, self.n_test_samples = 80, 80
+        self.n_train_samples, self.n_test_samples = 320, 80
 
         # not actually real one-hot encoding (ohe) but contains more info: roi-overlap only within classes.
         self.pp_create_ohe_seg = False
@@ -51,7 +51,7 @@ class Configs(DefaultConfigs):
         # e.g.: setting 0.1 means blurred edge has min intensity 10% as large as inner-object intensity.
         self.pp_blur_min_intensity = 0.2
 
-        self.max_instances_per_sample = 3 #how many max instances over all classes per sample (img if 2d, vol if 3d)
+        self.max_instances_per_sample = 1 #how many max instances over all classes per sample (img if 2d, vol if 3d)
         self.max_instances_per_class = self.max_instances_per_sample  # how many max instances per image per class
         self.noise_scale = 0.  # std-dev of gaussian noise
 
@@ -85,10 +85,10 @@ class Configs(DefaultConfigs):
         #         I/O           #
         #########################
 
-        self.data_sourcedir = '/mnt/HDD2TB/Documents/data/toy/cyl1ps_exact'
+        self.data_sourcedir = '/media/gregor/HDD2TB/data/toy/cyl1ps_dev'
 
         if server_env:
-            self.data_sourcedir = '/datasets/data_ramien/toy/cyl1ps_exact_npz'
+            self.data_sourcedir = '/datasets/data_ramien/toy/cyl1ps_dev_npz'
 
 
         self.test_data_sourcedir = os.path.join(self.data_sourcedir, 'test')
@@ -96,8 +96,8 @@ class Configs(DefaultConfigs):
 
         self.info_df_name = 'info_df.pickle'
 
-        # one out of ['mrcnn', 'retina_net', 'retina_unet', 'detection_unet', 'detection_fpn'].
-        self.model = 'retinau'
+        # one out of ['mrcnn', 'retina_net', 'retina_unet', 'detection_unet', 'ufrcnn', 'detection_fpn'].
+        self.model = 'retina_unet'
         self.model_path = 'models/{}.py'.format(self.model if not 'retina' in self.model else 'retina_net')
         self.model_path = os.path.join(self.source_dir, self.model_path)
 
@@ -107,17 +107,17 @@ class Configs(DefaultConfigs):
         #########################
 
         # one out of [2, 3]. dimension the model operates in.
-        self.dim = 2
+        self.dim = 3
 
         # 'class', 'regression', 'regression_bin', 'regression_ken_gal'
         # currently only tested mode is a single-task at a time (i.e., only one task in below list)
         # but, in principle, tasks could be combined (e.g., object classes and regression per class)
-        self.prediction_tasks = ['class',]
+        self.prediction_tasks = ['class', 'regression']
 
-        self.start_filts = 36 if self.dim == 2 else 18
+        self.start_filts = 48 if self.dim == 2 else 18
         self.end_filts = self.start_filts * 4 if self.dim == 2 else self.start_filts * 2
         self.res_architecture = 'resnet50' # 'resnet101' , 'resnet50'
-        self.norm = None #'instance_norm' # one of None, 'instance_norm', 'batch_norm'
+        self.norm = 'instance_norm' # one of None, 'instance_norm', 'batch_norm'
         self.relu = 'relu'
         # one of 'xavier_uniform', 'xavier_normal', or 'kaiming_normal', None (=default = 'kaiming_uniform')
         self.weight_init = None
@@ -130,8 +130,8 @@ class Configs(DefaultConfigs):
         #########################
 
         self.num_epochs = 32
-        self.num_train_batches = 100 if self.dim == 2 else 80
-        self.batch_size = 12 if self.dim == 2 else 8
+        self.num_train_batches = 120 if self.dim == 2 else 80
+        self.batch_size = 16 if self.dim == 2 else 8
 
         self.n_cv_splits = 4
         # select modalities from preprocessed data
@@ -155,7 +155,7 @@ class Configs(DefaultConfigs):
         self.observables_patient = []
         self.observables_rois = []
 
-        self.seed = 3 # for generating folds
+        self.seed = 3 #for generating folds
 
         #############################
         # Colors, Classes, Legends  #
@@ -274,7 +274,7 @@ class Configs(DefaultConfigs):
         self.held_out_test_set = True
         self.max_test_patients = "all"  # number or "all" for all
 
-        self.test_against_exact_gt = not 'exact' in self.data_sourcedir
+        self.test_against_exact_gt = True # only True implemented
         self.val_against_exact_gt = False # True is an unrealistic --> irrelevant scenario.
         self.report_score_level = ['rois']  # 'patient' or 'rois' (incl)
         self.patient_class_of_interest = 1
@@ -376,7 +376,6 @@ class Configs(DefaultConfigs):
       self.pad = "same"  # "same" or integer, padding of horizontal convs
 
     def add_mrcnn_configs(self):
-      self.frcnn_mode = False
 
       self.learning_rate = [1e-4] * self.num_epochs
       self.dynamic_lr_scheduling = True  # with scheduler set in exec
@@ -407,7 +406,7 @@ class Configs(DefaultConfigs):
       # choose which pyramid levels to extract features from: P2: 0, P3: 1, P4: 2, P5: 3.
       self.pyramid_levels = [0, 1, 2, 3]
       # number of feature maps in rpn. typically lowered in 3D to save gpu-memory.
-      self.n_rpn_features = 128 if self.dim == 2 else 64
+      self.n_rpn_features = 512 if self.dim == 2 else 64
 
       # anchor ratios and strides per position in feature maps.
       self.rpn_anchor_ratios = [0.5, 1., 2.]

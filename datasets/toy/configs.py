@@ -112,7 +112,7 @@ class Configs(DefaultConfigs):
         # 'class', 'regression', 'regression_bin', 'regression_ken_gal'
         # currently only tested mode is a single-task at a time (i.e., only one task in below list)
         # but, in principle, tasks could be combined (e.g., object classes and regression per class)
-        self.prediction_tasks = ['class', 'regression']
+        self.prediction_tasks = ['class', ]
 
         self.start_filts = 48 if self.dim == 2 else 18
         self.end_filts = self.start_filts * 4 if self.dim == 2 else self.start_filts * 2

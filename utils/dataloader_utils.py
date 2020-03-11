@@ -349,24 +349,58 @@ class BatchGenerator(SlimDataLoaderBase):
         self.batches_produced = 0
         self.thread_ids = self.rgen.permutation(self.eligible_pids[self.thread_id])
 
+    def sample_targets_to_weights(self, targets):
+        weights = targets * self.fg_bg_weights
+        return weights
+
     def balance_target_distribution(self, plot=False):
-        """
+        """Impose a drawing distribution over samples.
+         Distribution should be designed so that classes' fg and bg examples are (as good as possible) shown in
+         equal frequency. Since we are dealing with rois, fg/bg weights count a sample (e.g., a patient) with
+         **at least** one occurrence as fg, otherwise bg. For fg weights among classes, each RoI counts.
+
         :param all_pids:
         :param self.targets:  dic holding {patient_specifier : patient-wise-unique ROI targets}
         :return: probability distribution over all pids. draw without replace from this.
         """
+        uniq_targs = np.unique([v for pat in self.targets.values() for v in pat])
+        self.sample_stats = pd.DataFrame(columns=[str(ix)+suffix for ix in uniq_targs for suffix in ["", "_bg"]], index=list(self.targets.keys()))
+        for pid in self.sample_stats.index:
+            for targ in uniq_targs:
+                fg_count = np.count_nonzero(self.targets[pid] == targ)
+                self.sample_stats.loc[pid, str(targ)] = int(fg_count > 0)
+                self.sample_stats.loc[pid, str(targ)+"_bg"] = int(fg_count == 0)
+
+        self.targ_stats = self.sample_stats.agg(
+            ("sum", lambda col: col.sum() / len(self._data)), axis=0, sort=False).rename({"<lambda>": "relative"})
+
+        anchor = 1. - self.targ_stats.loc["relative"].iloc[0]
+        self.fg_bg_weights = anchor / self.targ_stats.loc["relative"]
+        cum_weights = anchor * len(self.fg_bg_weights)
+        self.fg_bg_weights /= cum_weights
+
+        self.p_probs = self.sample_stats.apply(self.sample_targets_to_weights, axis=1).sum(axis=1)
+        self.p_probs = self.p_probs / self.p_probs.sum()
+        # assert that probs are calc'd correctly:
+        # (self.p_probs * self.sample_stats["1"]).sum() == (self.p_probs * self.sample_stats["1_bg"]).sum()
+        expectations = []
+        for targ in self.sample_stats.columns:
+            expectations.append((self.p_probs * self.sample_stats[targ]).sum())
+        assert np.allclose(expectations, expectations[0], atol=1e-4), "expectation values for fgs/bgs: {}".format(expectations)
+
+        print("Applying class-weights: {}".format(self.fg_bg_weights))
         # get unique foreground targets per patient, assign -1 to an "empty" patient (has no foreground)
         patient_ts = [np.unique(lst) if len([t for t in lst if np.any(t>0)])>0 else [-1] for lst in self.targets.values()]
         #bg_mask = np.array([np.all(lst == [-1]) for lst in patient_ts])
         unique_ts, t_counts = np.unique([t for lst in patient_ts for t in lst if t!=-1], return_counts=True)
-        t_probs = t_counts.sum() / t_counts
-        t_probs /= t_probs.sum()
-        t_probs = {t : t_probs[ix] for ix, t in enumerate(unique_ts)}
-        t_probs[-1] = 0.
-        # fail if balance target is not a number (i.e., a vector)
-        self.p_probs = np.array([ max([t_probs[t] for t in lst]) for lst in patient_ts ])
-        #normalize
-        self.p_probs /= self.p_probs.sum()
+        # t_probs = t_counts.sum() / t_counts
+        # t_probs /= t_probs.sum()
+        # t_probs = {t : t_probs[ix] for ix, t in enumerate(unique_ts)}
+        # t_probs[-1] = 0.
+        # # fail if balance target is not a number (i.e., a vector)
+        # self.p_probs = np.array([ max([t_probs[t] for t in lst]) for lst in patient_ts ])
+        # #normalize
+        # self.p_probs /= self.p_probs.sum()
         # rescale probs of empty samples
         # if not 0 == self.p_probs[bg_mask].shape[0]:
         #     #rescale_f = (1 - self.cf.empty_samples_ratio) / self.p_probs[~bg_mask].sum()

@@ -555,6 +555,59 @@ class CheckRuntimeErrors(unittest.TestCase):
         subprocess.call("rm -rf {}".format(exp_dir), shell=True)
         assert all(checks.values()), "A runtime test crashed."
 
+class MulithreadedDataiterator(unittest.TestCase):
+
+    def test(self):
+        print("Testing multithreaded iterator.")
+
+
+        dataset = "toy"
+        exp_dir = Path("datasets/{}/experiments/dev".format(dataset))
+        cf_file = utils.import_module("cf_file", exp_dir/"configs.py")
+        cf = cf_file.Configs()
+        dloader = utils.import_module('data_loader', 'datasets/{}/data_loader.py'.format(dataset))
+        cf.exp_dir = Path(exp_dir)
+        cf.n_workers = 5
+
+        cf.batch_size = 3
+        cf.fold = 0
+        cf.plot_dir = cf.exp_dir / "plots"
+        logger = utils.get_logger(cf.exp_dir, cf.server_env, cf.sysmetrics_interval)
+        cf.num_val_batches = "all"
+        cf.val_mode = "val_sampling"
+        cf.n_workers = 8
+        batch_gens = dloader.get_train_generators(cf, logger, data_statistics=False)
+        val_loader = batch_gens["val_sampling"]
+
+        for epoch in range(4):
+            produced_ids = []
+            for i in range(batch_gens['n_val']):
+                batch = next(val_loader)
+                produced_ids.append(batch["pid"])
+            uni, cts = np.unique(np.concatenate(produced_ids), return_counts=True)
+            assert np.all(cts < 3), "with batch size one: every item should occur exactly once.\n uni {}, cts {}".format(
+                uni[cts>2], cts[cts>2])
+            #assert len(np.setdiff1d(val_loader.generator.dataset_pids, uni))==0, "not all val pids were shown."
+            assert len(np.setdiff1d(uni, val_loader.generator.dataset_pids))==0, "pids shown that are not val set. impossible?"
+
+
+        val_loader = dloader.create_data_gen_pipeline(cf, val_loader.generator._data, do_aug=False, sample_pids_w_replace=False,
+                                                             max_batches=None, raise_stop_iteration=True)
+        for epoch in range(2):
+            produced_ids = []
+            for b, batch in enumerate(val_loader):
+                produced_ids.append(batch["pid"])
+            uni, cts = np.unique(np.concatenate(produced_ids), return_counts=True)
+            assert np.all(cts == 1), "with batch size one: every item should occur exactly once.\n uni {}, cts {}".format(
+                uni[cts>1], cts[cts>1])
+            assert len(np.setdiff1d(val_loader.generator.dataset_pids, uni))==0, "not all val pids were shown."
+            assert len(np.setdiff1d(uni, val_loader.generator.dataset_pids))==0, "pids shown that are not val set. impossible?"
+
+
+
+
+        pass
+
 
 if __name__=="__main__":
     stime = time.time()

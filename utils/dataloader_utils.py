@@ -307,7 +307,7 @@ class BatchGenerator(SlimDataLoaderBase):
     :return dictionary containing the batch data / seg / pids as lists; the augmenter will later concatenate them into an array.
     """
 
-    def __init__(self, cf, data, sample_pids_w_replace, max_batches=None, raise_stop_iteration=False, n_threads=None, seed=0):
+    def __init__(self, cf, data, sample_pids_w_replace=True, max_batches=None, raise_stop_iteration=False, n_threads=None, seed=0):
         if n_threads is None:
             n_threads = cf.n_workers
         super(BatchGenerator, self).__init__(data, cf.batch_size, number_of_threads_in_multithreaded=n_threads)

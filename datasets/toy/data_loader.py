@@ -151,7 +151,7 @@ class BatchGenerator(dutils.BatchGenerator):
         # empty count for full bg samples (empty slices in 2D/patients in 3D) in slot num_classes (last)
         batch_roi_counts, empty_samples_count = np.zeros((len(self.unique_ts),), dtype='uint32'), 0
 
-        for b in range(self.batch_size):
+        for b in range(len(batch_pids)):
             patient = self._data[batch_pids[b]]
 
             data = np.load(patient['data'], mmap_mode='r').astype('float16')[np.newaxis]
@@ -421,7 +421,7 @@ class PatientBatchIterator(dutils.PatientBatchIterator):
         return out_batch
 
 
-def create_data_gen_pipeline(cf, patient_data, do_aug=True, sample_pids_w_replace=True):
+def create_data_gen_pipeline(cf, patient_data, do_aug=True, **kwargs):
     """
     create mutli-threaded train/val/test batch generation and augmentation pipeline.
     :param patient_data: dictionary containing one dictionary per patient in the train/test subset.
@@ -430,7 +430,7 @@ def create_data_gen_pipeline(cf, patient_data, do_aug=True, sample_pids_w_replac
     """
 
     # create instance of batch generator as first element in pipeline.
-    data_gen = BatchGenerator(cf, patient_data, sample_pids_w_replace=sample_pids_w_replace)
+    data_gen = BatchGenerator(cf, patient_data, **kwargs)
 
     my_transforms = []
     if do_aug:
@@ -485,15 +485,18 @@ def get_train_generators(cf, logger, data_statistics=False):
         dataset.calc_statistics(subsets={"train": train_ids, "val": val_ids, "test": test_ids}, plot_dir=
         os.path.join(cf.plot_dir,"dataset"))
 
+
+
     batch_gen = {}
     batch_gen['train'] = create_data_gen_pipeline(cf, train_data, do_aug=cf.do_aug, sample_pids_w_replace=True)
-    batch_gen['val_sampling'] = create_data_gen_pipeline(cf, val_data, do_aug=False, sample_pids_w_replace=False)
-
     if cf.val_mode == 'val_patient':
         batch_gen['val_patient'] = PatientBatchIterator(cf, val_data, mode='validation')
         batch_gen['n_val'] = len(val_ids) if cf.max_val_patients=="all" else min(len(val_ids), cf.max_val_patients)
     elif cf.val_mode == 'val_sampling':
-        batch_gen['n_val'] = cf.num_val_batches if cf.num_val_batches != "all" else len(val_data)
+        batch_gen['n_val'] = int(np.ceil(len(val_data)/cf.batch_size)) if cf.num_val_batches == "all" else cf.num_val_batches
+        # in current setup, val loader is used like generator. with max_batches being applied in train routine.
+        batch_gen['val_sampling'] = create_data_gen_pipeline(cf, val_data, do_aug=False, sample_pids_w_replace=False,
+                                                             max_batches=None, raise_stop_iteration=False)
 
     return batch_gen
 

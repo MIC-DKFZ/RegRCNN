@@ -38,7 +38,7 @@ class Configs(DefaultConfigs):
 
         self.root_dir = '/home/gregor/networkdrives/E130-Personal/Goetz/Datenkollektive/Lungendaten/Nodules_LIDC_IDRI'
         self.raw_data_dir = '{}/new_nrrd'.format(self.root_dir)
-        self.pp_dir = '/mnt/HDD2TB/Documents/data/lidc/pp_20191219_dev'
+        self.pp_dir = '/media/gregor/HDD2TB/data/lidc/pp_20200309_dev'
         # 'merged' for one gt per image, 'single_annotator' for four gts per image.
         self.gts_to_produce = ["single_annotator", "merged"]
 
@@ -50,10 +50,10 @@ class Configs(DefaultConfigs):
 
         # path to preprocessed data.
         #self.pp_name = 'pp_20190318'
-        self.pp_name = 'pp_20191219_dev'
+        self.pp_name = 'pp_20200309_dev'
 
         self.input_df_name = 'info_df.pickle'
-        self.data_sourcedir = '/mnt/HDD2TB/Documents/data/lidc/{}/'.format(self.pp_name)
+        self.data_sourcedir = '/media/gregor/HDD2TB/data/lidc/{}/'.format(self.pp_name)
 
         # settings for deployment on cluster.
         if server_env:

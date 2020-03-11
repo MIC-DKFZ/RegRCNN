@@ -355,7 +355,10 @@ class ToyGenerator(object):
         print('starting creation of {} images.'.format(len(self.mp_args)))
         shutil.copyfile("configs.py", os.path.join(self.cf.pp_rootdir, 'applied_configs.py'))
         pool = Pool(processes=processes)
-        imgs_info = pool.map(self.create_sample, self.mp_args)
+        try:
+            imgs_info = pool.map(self.create_sample, self.mp_args)
+        except AttributeError as e:
+            raise AttributeError("{}\nAre configs tasks = ['class', 'regression'] (both)?".format(e))
         imgs_info = [img for img in imgs_info if img is not None]
         pool.close()
         pool.join()

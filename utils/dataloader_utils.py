@@ -381,14 +381,17 @@ class BatchGenerator(SlimDataLoaderBase):
 
         self.p_probs = self.sample_stats.apply(self.sample_targets_to_weights, axis=1).sum(axis=1)
         self.p_probs = self.p_probs / self.p_probs.sum()
-        # assert that probs are calc'd correctly:
-        # (self.p_probs * self.sample_stats["1"]).sum() == (self.p_probs * self.sample_stats["1_bg"]).sum()
-        expectations = []
-        for targ in self.sample_stats.columns:
-            expectations.append((self.p_probs * self.sample_stats[targ]).sum())
-        assert np.allclose(expectations, expectations[0], atol=1e-4), "expectation values for fgs/bgs: {}".format(expectations)
 
         print("Applying class-weights: {}".format(self.fg_bg_weights))
+        if len(self.sample_stats.columns) == 2:
+            # assert that probs are calc'd correctly:
+            # (self.p_probs * self.sample_stats["1"]).sum() == (self.p_probs * self.sample_stats["1_bg"]).sum()
+            # only works if one label per patient (multi-label expectations depend on multi-label occurences).
+            expectations = []
+            for targ in self.sample_stats.columns:
+                expectations.append((self.p_probs * self.sample_stats[targ]).sum())
+            assert np.allclose(expectations, expectations[0], atol=1e-4), "expectation values for fgs/bgs: {}".format(expectations)
+
         # get unique foreground targets per patient, assign -1 to an "empty" patient (has no foreground)
         patient_ts = [np.unique(lst) if len([t for t in lst if np.any(t>0)])>0 else [-1] for lst in self.targets.values()]
         #bg_mask = np.array([np.all(lst == [-1]) for lst in patient_ts])

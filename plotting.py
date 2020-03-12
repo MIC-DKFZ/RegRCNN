@@ -687,7 +687,7 @@ def plot_batchgen_distribution(cf, pids, p_probs, balance_target, out_file=None)
 
     plt.close()
 
-def plot_batchgen_stats(cf, stats, target_name, unique_ts, out_file=None):
+def plot_batchgen_stats(cf, stats, empties, target_name, unique_ts, out_file=None):
     """Plot bar chart showing RoI frequencies and empty-sample count of batch stats recorded by BatchGenerator.
     :param cf: config.
     :param stats: statistics as supplied by BatchGenerator class.
@@ -710,7 +710,7 @@ def plot_batchgen_stats(cf, stats, target_name, unique_ts, out_file=None):
     colors = [label_dict[t_id].color for t_id in unique_ts]
 
     title = "Training Target Frequencies"
-    title += "\nempty samples: {} ({:.1f}%)".format(stats['empty_samples_count'], stats['empty_samples_count']/total_samples*100)
+    title += "\nempty samples: {}".format(empties)
     rects = plt.bar(names, stats['roi_counts'], color=colors, alpha=0.9, edgecolor=colors)
     ax = plt.gca()
 

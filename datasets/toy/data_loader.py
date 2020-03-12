@@ -137,7 +137,6 @@ class BatchGenerator(dutils.BatchGenerator):
         self.empty_samples_max_ratio = 0.6
 
         self.balance_target_distribution(plot=sample_pids_w_replace)
-        self.stats = {"roi_counts": np.zeros((len(self.unique_ts),), dtype='uint32'), "empty_samples_count": 0}
 
     def generate_train_batch(self):
         # everything done in here is per batch
@@ -147,9 +146,10 @@ class BatchGenerator(dutils.BatchGenerator):
 
         batch_data, batch_segs, batch_patient_targets = [], [], []
         batch_roi_items = {name: [] for name in self.cf.roi_items}
-        # record roi count of classes in batch
-        # empty count for full bg samples (empty slices in 2D/patients in 3D) in slot num_classes (last)
-        batch_roi_counts, empty_samples_count = np.zeros((len(self.unique_ts),), dtype='uint32'), 0
+        # record roi count and empty count of classes in batch
+        # empty count for no presence of resp. class in whole sample (empty slices in 2D/patients in 3D)
+        batch_roi_counts = np.zeros((len(self.unique_ts),), dtype='uint32')
+        batch_empty_counts = np.zeros((len(self.unique_ts),), dtype='uint32')
 
         for b in range(len(batch_pids)):
             patient = self._data[batch_pids[b]]
@@ -161,7 +161,7 @@ class BatchGenerator(dutils.BatchGenerator):
             if self.cf.dim == 2:
                 elig_slices, choose_fg = [], False
                 if len(patient['fg_slices']) > 0:
-                    if empty_samples_count / self.batch_size >= self.empty_samples_max_ratio or np.random.rand(
+                    if np.all(batch_empty_counts / self.batch_size >= self.empty_samples_max_ratio) or np.random.rand(
                             1) <= self.p_fg:
                         # fg is to be picked
                         for tix in np.argsort(batch_roi_counts):
@@ -196,7 +196,8 @@ class BatchGenerator(dutils.BatchGenerator):
             if np.any(dim_cropflags):
                 # sample pixel from random ROI and shift center, if possible, to that pixel
                 if self.cf.dim==3:
-                    choose_fg = (empty_samples_count/self.batch_size>=self.empty_samples_max_ratio) or np.random.rand(1) <= self.p_fg
+                    choose_fg = np.any(batch_empty_counts/self.batch_size>=self.empty_samples_max_ratio) or \
+                                np.random.rand(1) <= self.p_fg
                 if choose_fg and np.any(seg):
                     available_roi_ids = np.unique(seg)[1:]
                     for tix in np.argsort(batch_roi_counts):
@@ -246,16 +247,24 @@ class BatchGenerator(dutils.BatchGenerator):
 
             if self.cf.dim == 3:
                 for tix in range(len(self.unique_ts)):
-                    batch_roi_counts[tix] += np.count_nonzero(patient[self.balance_target] == self.unique_ts[tix])
+                    non_zero = np.count_nonzero(patient[self.balance_target] == self.unique_ts[tix])
+                    batch_roi_counts[tix] += non_zero
+                    batch_empty_counts[tix] += int(non_zero==0)
+                    # todo remove assert when checked
+                    if not np.any(seg):
+                        assert non_zero==0
             elif self.cf.dim == 2:
                 for tix in range(len(self.unique_ts)):
-                    batch_roi_counts[tix] += np.count_nonzero(patient[self.balance_target][np.unique(seg[seg>0]) - 1] == self.unique_ts[tix])
-            if not np.any(seg):
-                empty_samples_count += 1
+                    non_zero = np.count_nonzero(patient[self.balance_target][np.unique(seg[seg>0]) - 1] == self.unique_ts[tix])
+                    batch_roi_counts[tix] += non_zero
+                    batch_empty_counts[tix] += int(non_zero == 0)
+                    # todo remove assert when checked
+                    if not np.any(seg):
+                        assert non_zero==0
 
         batch = {'data': np.array(batch_data), 'seg': np.array(batch_segs).astype('uint8'),
                  'pid': batch_pids,
-                 'roi_counts': batch_roi_counts, 'empty_samples_count': empty_samples_count}
+                 'roi_counts': batch_roi_counts, 'empty_counts': batch_empty_counts}
         for key,val in batch_roi_items.items(): #extend batch dic by entries of observables dic
             batch[key] = np.array(val)
 

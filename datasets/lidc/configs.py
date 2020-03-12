@@ -71,14 +71,14 @@ class Configs(DefaultConfigs):
         #########################
 
         # dimension the model operates in. one out of [2, 3].
-        self.dim = 3
+        self.dim = 2
 
         # 'class': standard object classification per roi, pairwise combinable with each of below tasks.
         # if 'class' is omitted from tasks, object classes will be fg/bg (1/0) from RPN.
         # 'regression': regress some vector per each roi
         # 'regression_ken_gal': use kendall-gal uncertainty sigma
         # 'regression_bin': classify each roi into a bin related to a regression scale
-        self.prediction_tasks = ['class']
+        self.prediction_tasks = ['regression']
 
         self.start_filts = 48 if self.dim == 2 else 18
         self.end_filts = self.start_filts * 4 if self.dim == 2 else self.start_filts * 2
@@ -98,7 +98,7 @@ class Configs(DefaultConfigs):
         # handling of noisy gts.
         # choose 'merged' for single, merged gt per image, or 'single_annotator' for four gts per image.
         # validation is always performed on same gt kind as training, testing always on merged gt.
-        self.training_gts = "merged"
+        self.training_gts = "sa"
 
         # select modalities from preprocessed data
         self.channels = [0]

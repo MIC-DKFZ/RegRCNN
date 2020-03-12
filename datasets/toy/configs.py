@@ -85,7 +85,7 @@ class Configs(DefaultConfigs):
         #         I/O           #
         #########################
 
-        self.data_sourcedir = '/media/gregor/HDD2TB/data/toy/cyl1ps_dev'
+        self.data_sourcedir = '/home/gregor/data/toy/cyl1ps_dev'
 
         if server_env:
             self.data_sourcedir = '/datasets/data_ramien/toy/cyl1ps_dev_npz'

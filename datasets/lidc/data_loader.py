@@ -177,7 +177,7 @@ class BatchGenerator_merged(dutils.BatchGenerator):
     :param batch_size: number of patients to sample for the batch
     :return dictionary containing the batch data (b, c, x, y, (z)) / seg (b, 1, x, y, (z)) / pids / class_target
     """
-    def __init__(self, cf, data):
+    def __init__(self, cf, data, name="train"):
         super(BatchGenerator_merged, self).__init__(cf, data)
 
         self.crop_margin = np.array(self.cf.patch_size)/8. #min distance of ROI center to edge of cropped_patch.
@@ -188,9 +188,7 @@ class BatchGenerator_merged(dutils.BatchGenerator):
         self.class_targets = {k: v["class_targets"] for (k, v) in self._data.items()}
 
 
-        self.balance_target_distribution(plot=True)
-        self.stats = {"roi_counts": np.zeros((len(self.unique_ts),), dtype='uint32'), "empty_samples_count": 0}
-
+        self.balance_target_distribution(plot=name=="train")
 
     def generate_train_batch(self):
 
@@ -204,8 +202,9 @@ class BatchGenerator_merged(dutils.BatchGenerator):
         batch_data, batch_segs, batch_pids, batch_patient_labels = [], [], [], []
         batch_roi_items = {name: [] for name in self.cf.roi_items}
         # record roi count of classes in batch
-        batch_roi_counts, empty_samples_count = np.zeros((len(self.unique_ts),), dtype='uint32'), 0
-        # empty count for full bg samples (empty slices in 2D/patients in 3D)
+        batch_roi_counts = np.zeros((len(self.unique_ts),), dtype='uint32')
+        batch_empty_counts = np.zeros((len(self.unique_ts),), dtype='uint32')
+        # empty count for full bg samples (empty slices in 2D/patients in 3D) per class
 
 
         for sample in range(self.batch_size):
@@ -220,7 +219,8 @@ class BatchGenerator_merged(dutils.BatchGenerator):
 
                 elig_slices, choose_fg = [], False
                 if len(patient['fg_slices']) > 0:
-                    if empty_samples_count / self.batch_size >= self.empty_samples_max_ratio or np.random.rand(1)<=self.p_fg:
+                    if np.all(batch_empty_counts / self.batch_size >= self.empty_samples_max_ratio) or \
+                            np.random.rand(1)<=self.p_fg:
                         # fg is to be picked
                         for tix in np.argsort(batch_roi_counts):
                             # pick slices of patient that have roi of sought-for target
@@ -253,7 +253,8 @@ class BatchGenerator_merged(dutils.BatchGenerator):
             crop_dims = [dim for dim, ps in enumerate(self.cf.pre_crop_size) if data.shape[dim + 1] > ps]
             if len(crop_dims) > 0:
                 if self.cf.dim == 3:
-                    choose_fg = (empty_samples_count/self.batch_size>=self.empty_samples_max_ratio) or np.random.rand(1) <= self.p_fg
+                    choose_fg = np.all(batch_empty_counts / self.batch_size >= self.empty_samples_max_ratio)\
+                                or np.random.rand(1) <= self.p_fg
                 if choose_fg and np.any(seg):
                     available_roi_ids = np.unique(seg)[1:]
                     for tix in np.argsort(batch_roi_counts):
@@ -296,18 +297,26 @@ class BatchGenerator_merged(dutils.BatchGenerator):
 
             if self.cf.dim == 3:
                 for tix in range(len(self.unique_ts)):
-                    batch_roi_counts[tix] += np.count_nonzero(patient[self.balance_target] == self.unique_ts[tix])
+                    non_zero = np.count_nonzero(patient[self.balance_target] == self.unique_ts[tix])
+                    batch_roi_counts[tix] += non_zero
+                    batch_empty_counts[tix] += int(non_zero==0)
+                    # todo remove assert when checked
+                    if not np.any(seg):
+                        assert non_zero==0
             elif self.cf.dim == 2:
                 for tix in range(len(self.unique_ts)):
-                    batch_roi_counts[tix] += np.count_nonzero(patient[self.balance_target][np.unique(seg[seg>0]) - 1] == self.unique_ts[tix])
-            if not np.any(seg):
-                empty_samples_count += 1
+                    non_zero = np.count_nonzero(patient[self.balance_target][np.unique(seg[seg>0]) - 1] == self.unique_ts[tix])
+                    batch_roi_counts[tix] += non_zero
+                    batch_empty_counts[tix] += int(non_zero == 0)
+                    # todo remove assert when checked
+                    if not np.any(seg):
+                        assert non_zero==0
 
 
         data = np.array(batch_data).astype(np.float16)
         seg = np.array(batch_segs).astype(np.uint8)
         batch = {'data': data, 'seg': seg, 'pid': batch_pids,
-                'roi_counts':batch_roi_counts, 'empty_samples_count': empty_samples_count}
+                'roi_counts':batch_roi_counts, 'empty_counts': batch_empty_counts}
         for key,val in batch_roi_items.items(): #extend batch dic by roi-wise items (obs, class ids, regression vectors...)
             batch[key] = np.array(val)
 
@@ -454,34 +463,66 @@ class BatchGenerator_sa(dutils.BatchGenerator):
         :param plot: whether to plot the generated patient distributions
         :return: probability distribution over all pids. draw without replace from this.
         """
-        # get unique foreground targets per patient, assign -1 to an "empty" patient (has no foreground)
-        patient_ts = [[roi[rater] for roi in patient_rois_lst] for patient_rois_lst in self.targets.values()]
-        # assign [-1] to empty patients
-        patient_ts = [np.unique(lst) if len([t for t in lst if np.any(t>0)])>0 else [-1] for lst in patient_ts]
-        #bg_mask = np.array([np.all(lst == [-1]) for lst in patient_ts])
-        # sort out bg labels (are 0)
-        unique_ts, t_counts = np.unique([t for lst in patient_ts for t in lst if t>0], return_counts=True)
-        t_probs = t_counts.sum() / t_counts
-        t_probs /= t_probs.sum()
-        t_probs = {t : t_probs[ix] for ix, t in enumerate(unique_ts)}
-        t_probs[-1] = 0.
-        t_probs[0] = 0.
-        # fail if balance target is not a number (i.e., a vector)
-        p_probs = np.array([ max([t_probs[t] for t in lst]) for lst in patient_ts ])
-        #normalize
-        p_probs /= p_probs.sum()
+        unique_ts = np.unique([v[rater] for pat in self.targets.values() for v in pat])
+        sample_stats = pd.DataFrame(columns=[str(ix) + suffix for ix in unique_ts for suffix in ["", "_bg"]],
+                                         index=list(self.targets.keys()))
+        for pid in sample_stats.index:
+            for targ in unique_ts:
+                fg_count = 0 if len(self.targets[pid]) == 0 else np.count_nonzero(self.targets[pid][:, rater] == targ)
+                sample_stats.loc[pid, str(targ)] = int(fg_count > 0)
+                sample_stats.loc[pid, str(targ) + "_bg"] = int(fg_count == 0)
+
+        target_stats = sample_stats.agg(
+            ("sum", lambda col: col.sum() / len(self._data)), axis=0, sort=False).rename({"<lambda>": "relative"})
+
+        anchor = 1. - target_stats.loc["relative"].iloc[0]
+        self.fg_bg_weights = anchor / target_stats.loc["relative"]
+        cum_weights = anchor * len(self.fg_bg_weights)
+        self.fg_bg_weights /= cum_weights
+
+        p_probs = sample_stats.apply(self.sample_targets_to_weights, axis=1).sum(axis=1)
+        p_probs = p_probs / p_probs.sum()
+        if plot:
+            print("Rater: {}. Applying class-weights:\n {}".format(rater, self.fg_bg_weights))
+        if len(sample_stats.columns) == 2:
+            # assert that probs are calc'd correctly:
+            # (p_probs * sample_stats["1"]).sum() == (p_probs * sample_stats["1_bg"]).sum()
+            # only works if one label per patient (multi-label expectations depend on multi-label occurences).
+            expectations = []
+            for targ in sample_stats.columns:
+                expectations.append((p_probs * sample_stats[targ]).sum())
+            assert np.allclose(expectations, expectations[0], atol=1e-4), "expectation values for fgs/bgs: {}".format(
+                expectations)
+
+
+        # # get unique foreground targets per patient, assign -1 to an "empty" patient (has no foreground)
+        # patient_ts = [[roi[rater] for roi in patient_rois_lst] for patient_rois_lst in self.targets.values()]
+        # # assign [-1] to empty patients
+        # patient_ts = [np.unique(lst) if len([t for t in lst if np.any(t>0)])>0 else [-1] for lst in patient_ts]
+        # #bg_mask = np.array([np.all(lst == [-1]) for lst in patient_ts])
+        # # sort out bg labels (are 0)
+        # unique_ts, t_counts = np.unique([t for lst in patient_ts for t in lst if t>0], return_counts=True)
+        # t_probs = t_counts.sum() / t_counts
+        # t_probs /= t_probs.sum()
+        # t_probs = {t : t_probs[ix] for ix, t in enumerate(unique_ts)}
+        # t_probs[-1] = 0.
+        # t_probs[0] = 0.
+        # # fail if balance target is not a number (i.e., a vector)
+        # p_probs = np.array([ max([t_probs[t] for t in lst]) for lst in patient_ts ])
+        # #normalize
+        # p_probs /= p_probs.sum()
 
         if plot:
             plg.plot_batchgen_distribution(self.cf, self.dataset_pids, p_probs, self.balance_target,
                                            out_file=os.path.join(self.cf.plot_dir,
                                                                  "train_gen_distr_"+str(self.cf.fold)+"_rater"+str(rater)+".png"))
-        return p_probs, unique_ts
+        return p_probs, unique_ts, sample_stats
 
 
 
-    def __init__(self, cf, data):
+    def __init__(self, cf, data, name="train"):
         super(BatchGenerator_sa, self).__init__(cf, data)
-
+        self.name = name
         self.crop_margin = np.array(self.cf.patch_size) / 8.  # min distance of ROI center to edge of cropped_patch.
         self.p_fg = 0.5
         self.empty_samples_max_ratio = 0.6
@@ -490,13 +531,15 @@ class BatchGenerator_sa(dutils.BatchGenerator):
 
         self.rater_bsize = 4
         unique_ts_total = set()
-        self.rater_p_probs = []
+        self.p_probs = []
+        self.sample_stats = []
         for r in range(self.rater_bsize):
-            p_probs, unique_ts = self.balance_target_distribution(r, plot=True)
-            self.rater_p_probs.append(p_probs)
+            # todo multiprocess. takes forever
+            p_probs, unique_ts, sample_stats = self.balance_target_distribution(r, plot=name=="train")
+            self.p_probs.append(p_probs)
+            self.sample_stats.append(sample_stats)
             unique_ts_total.update(unique_ts)
         self.unique_ts = sorted(list(unique_ts_total))
-        self.stats = {"roi_counts": np.zeros((len(self.unique_ts),), dtype='uint32'), "empty_samples_count": 0}
 
 
     def generate_train_batch(self):
@@ -508,12 +551,13 @@ class BatchGenerator_sa(dutils.BatchGenerator):
         batch_patient_ids = list(np.random.choice(self.dataset_pids, size=self.random_count, replace=False))
         # target-balanced patients
         batch_patient_ids += list(np.random.choice(self.dataset_pids, size=self.batch_size-self.random_count, replace=False,
-                                             p=self.rater_p_probs[rater]))
+                                             p=self.p_probs[rater]))
 
         batch_data, batch_segs, batch_pids, batch_patient_labels = [], [], [], []
         batch_roi_items = {name: [] for name in self.cf.roi_items}
         # record roi count of classes in batch
-        batch_roi_counts, empty_samples_count = np.zeros((len(self.unique_ts),), dtype='uint32'), 0
+        batch_roi_counts = np.zeros((len(self.unique_ts),), dtype='uint32')
+        batch_empty_counts = np.zeros((len(self.unique_ts),), dtype='uint32')
         # empty count for full bg samples (empty slices in 2D/patients in 3D)
 
 
@@ -532,8 +576,8 @@ class BatchGenerator_sa(dutils.BatchGenerator):
 
                 elig_slices, choose_fg = [], False
                 if len(patient['fg_slices']) > 0:
-                    if empty_samples_count / self.batch_size >= self.empty_samples_max_ratio or np.random.rand(
-                            1) <= self.p_fg:
+                    if np.all(batch_empty_counts / self.batch_size >= self.empty_samples_max_ratio) or \
+                            np.random.rand(1) <= self.p_fg:
                         # fg is to be picked
                         for tix in np.argsort(batch_roi_counts):
                             # pick slices of patient that have roi of sought-for target
@@ -566,7 +610,8 @@ class BatchGenerator_sa(dutils.BatchGenerator):
             crop_dims = [dim for dim, ps in enumerate(self.cf.pre_crop_size) if data.shape[dim + 1] > ps]
             if len(crop_dims) > 0:
                 if self.cf.dim == 3:
-                    choose_fg = (empty_samples_count/self.batch_size>=self.empty_samples_max_ratio) or np.random.rand(1) <= self.p_fg
+                    choose_fg = np.all(batch_empty_counts / self.batch_size >= self.empty_samples_max_ratio) or \
+                                np.random.rand(1) <= self.p_fg
                 if choose_fg and np.any(seg):
                     available_roi_ids = np.unique(seg[seg>0])
                     assert np.all(patient_balance_ts[available_roi_ids-1]>0), "trying to choose roi with rating 0"
@@ -610,18 +655,26 @@ class BatchGenerator_sa(dutils.BatchGenerator):
 
             if self.cf.dim == 3:
                 for tix in range(len(self.unique_ts)):
-                    batch_roi_counts[tix] += np.count_nonzero(patient_balance_ts == self.unique_ts[tix])
+                    non_zero = np.count_nonzero(patient[self.balance_target] == self.unique_ts[tix])
+                    batch_roi_counts[tix] += non_zero
+                    batch_empty_counts[tix] += int(non_zero==0)
+                    # todo remove assert when checked
+                    if not np.any(seg):
+                        assert non_zero==0
             elif self.cf.dim == 2:
                 for tix in range(len(self.unique_ts)):
-                    batch_roi_counts[tix] += np.count_nonzero(patient_balance_ts[np.unique(seg[seg>0]) - 1] == self.unique_ts[tix])
-            if not np.any(seg):
-                empty_samples_count += 1
+                    non_zero = np.count_nonzero(patient[self.balance_target][np.unique(seg[seg>0]) - 1] == self.unique_ts[tix])
+                    batch_roi_counts[tix] += non_zero
+                    batch_empty_counts[tix] += int(non_zero == 0)
+                    # todo remove assert when checked
+                    if not np.any(seg):
+                        assert non_zero==0
 
 
         data = np.array(batch_data).astype('float16')
         seg = np.array(batch_segs).astype('uint8')
         batch = {'data': data, 'seg': seg, 'pid': batch_pids, 'rater_id': rater,
-                'roi_counts':batch_roi_counts, 'empty_samples_count': empty_samples_count}
+                'roi_counts':batch_roi_counts, 'empty_counts': batch_empty_counts}
         for key,val in batch_roi_items.items(): #extend batch dic by roi-wise items (obs, class ids, regression vectors...)
             batch[key] = np.array(val)
 
@@ -795,8 +848,9 @@ def create_data_gen_pipeline(cf, patient_data, is_training=True):
     :param is_training: (optional) whether to perform data augmentation (training) or not (validation/testing)
     :return: multithreaded_generator
     """
-
-    data_gen = BatchGenerator_merged(cf, patient_data) if cf.training_gts=='merged' else BatchGenerator_sa(cf, patient_data)
+    BG_name = "train" if is_training else "val"
+    data_gen = BatchGenerator_merged(cf, patient_data, name=BG_name) if cf.training_gts=='merged' else \
+        BatchGenerator_sa(cf, patient_data, name=BG_name)
 
     # add transformations to pipeline.
     my_transforms = []

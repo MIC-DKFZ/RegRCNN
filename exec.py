@@ -85,7 +85,7 @@ def train(cf, logger):
             logger.time("train_batch_loadfw")
             batch = next(batch_gen['train'])
             batch_gen['train'].generator.stats['roi_counts'] += batch['roi_counts']
-            batch_gen['train'].generator.stats['empty_samples_count'] += batch['empty_samples_count']
+            batch_gen['train'].generator.stats['empty_counts'] += batch['empty_counts']
 
             logger.time("train_batch_loadfw")
             logger.time("train_batch_netfw")

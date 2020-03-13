@@ -350,8 +350,9 @@ class BatchGenerator(SlimDataLoaderBase):
         self.batches_produced = 0
         self.thread_ids = self.rgen.permutation(self.eligible_pids[self.thread_id])
 
-    def sample_targets_to_weights(self, targets):
-        weights = targets * self.fg_bg_weights
+    @staticmethod
+    def sample_targets_to_weights(targets, fg_bg_weights):
+        weights = targets * fg_bg_weights
         return weights
 
     def balance_target_distribution(self, plot=False):
@@ -380,7 +381,7 @@ class BatchGenerator(SlimDataLoaderBase):
         cum_weights = anchor * len(self.fg_bg_weights)
         self.fg_bg_weights /= cum_weights
 
-        self.p_probs = self.sample_stats.apply(self.sample_targets_to_weights, axis=1).sum(axis=1)
+        self.p_probs = self.sample_stats.apply(self.sample_targets_to_weights, args=(self.fg_bg_weights,), axis=1).sum(axis=1)
         self.p_probs = self.p_probs / self.p_probs.sum()
         if plot:
             print("Applying class-weights:\n {}".format(self.fg_bg_weights))

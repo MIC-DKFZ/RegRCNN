@@ -26,6 +26,7 @@ import plotting as plg
 import os
 import pickle
 import time
+from multiprocessing import Pool
 
 import numpy as np
 import pandas as pd
@@ -476,45 +477,28 @@ class BatchGenerator_sa(dutils.BatchGenerator):
             ("sum", lambda col: col.sum() / len(self._data)), axis=0, sort=False).rename({"<lambda>": "relative"})
 
         anchor = 1. - target_stats.loc["relative"].iloc[0]
-        self.fg_bg_weights = anchor / target_stats.loc["relative"]
-        cum_weights = anchor * len(self.fg_bg_weights)
-        self.fg_bg_weights /= cum_weights
+        fg_bg_weights = anchor / target_stats.loc["relative"]
+        cum_weights = anchor * len(fg_bg_weights)
+        fg_bg_weights /= cum_weights
 
-        p_probs = sample_stats.apply(self.sample_targets_to_weights, axis=1).sum(axis=1)
+        p_probs = sample_stats.apply(self.sample_targets_to_weights, args=(fg_bg_weights,), axis=1).sum(axis=1)
         p_probs = p_probs / p_probs.sum()
         if plot:
-            print("Rater: {}. Applying class-weights:\n {}".format(rater, self.fg_bg_weights))
+            print("Rater: {}. Applying class-weights:\n {}".format(rater, fg_bg_weights))
         if len(sample_stats.columns) == 2:
             # assert that probs are calc'd correctly:
             # (p_probs * sample_stats["1"]).sum() == (p_probs * sample_stats["1_bg"]).sum()
             # only works if one label per patient (multi-label expectations depend on multi-label occurences).
-            expectations = []
-            for targ in sample_stats.columns:
-                expectations.append((p_probs * sample_stats[targ]).sum())
-            assert np.allclose(expectations, expectations[0], atol=1e-4), "expectation values for fgs/bgs: {}".format(
-                expectations)
-
-
-        # # get unique foreground targets per patient, assign -1 to an "empty" patient (has no foreground)
-        # patient_ts = [[roi[rater] for roi in patient_rois_lst] for patient_rois_lst in self.targets.values()]
-        # # assign [-1] to empty patients
-        # patient_ts = [np.unique(lst) if len([t for t in lst if np.any(t>0)])>0 else [-1] for lst in patient_ts]
-        # #bg_mask = np.array([np.all(lst == [-1]) for lst in patient_ts])
-        # # sort out bg labels (are 0)
-        # unique_ts, t_counts = np.unique([t for lst in patient_ts for t in lst if t>0], return_counts=True)
-        # t_probs = t_counts.sum() / t_counts
-        # t_probs /= t_probs.sum()
-        # t_probs = {t : t_probs[ix] for ix, t in enumerate(unique_ts)}
-        # t_probs[-1] = 0.
-        # t_probs[0] = 0.
-        # # fail if balance target is not a number (i.e., a vector)
-        # p_probs = np.array([ max([t_probs[t] for t in lst]) for lst in patient_ts ])
-        # #normalize
-        # p_probs /= p_probs.sum()
+            for rater in range(self.rater_bsize):
+                expectations = []
+                for targ in sample_stats.columns:
+                    expectations.append((p_probs[rater] * sample_stats[targ]).sum())
+                assert np.allclose(expectations, expectations[0], atol=1e-4), "expectation values for fgs/bgs: {}".format(
+                    expectations)
 
         if plot:
             plg.plot_batchgen_distribution(self.cf, self.dataset_pids, p_probs, self.balance_target,
-                                           out_file=os.path.join(self.cf.plot_dir,
+                                           out_file=os.path.join(self.plot_dir,
                                                                  "train_gen_distr_"+str(self.cf.fold)+"_rater"+str(rater)+".png"))
         return p_probs, unique_ts, sample_stats
 
@@ -533,12 +517,17 @@ class BatchGenerator_sa(dutils.BatchGenerator):
         unique_ts_total = set()
         self.p_probs = []
         self.sample_stats = []
-        for r in range(self.rater_bsize):
-            # todo multiprocess. takes forever
-            p_probs, unique_ts, sample_stats = self.balance_target_distribution(r, plot=name=="train")
+        p = Pool(processes=cf.n_workers)
+        mp_res = p.starmap(self.balance_target_distribution, [(r, name=="train") for r in range(self.rater_bsize)])
+        p.close()
+        p.join()
+
+        for r, res in enumerate(mp_res):
+            p_probs, unique_ts, sample_stats = res
             self.p_probs.append(p_probs)
             self.sample_stats.append(sample_stats)
             unique_ts_total.update(unique_ts)
+
         self.unique_ts = sorted(list(unique_ts_total))
 
 
@@ -998,7 +987,7 @@ if __name__ == "__main__":
     ex_batch = test_loader.generate_train_batch()
     times["test_batch"] = time.time() - stime
     stime = time.time()
-    plg.view_batch(cf, ex_batch, show_gt_labels=True, out_file="experiments/dev/dev_expatchbatch.png")#, sample_picks=[0,1,2,3])
+    plg.view_batch(cf, ex_batch, show_gt_labels=True, out_file="experiments/dev/dev_expatchbatch.png", get_time=False)#, sample_picks=[0,1,2,3])
     times["test_patchbatch_plot"] = time.time() - stime
 
     # ex_batch['data'] = ex_batch['patient_data']

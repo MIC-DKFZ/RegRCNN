@@ -112,10 +112,9 @@ def train(cf, logger):
         #--------------- train eval ----------------
         if (epoch-1)%cf.plot_frequency==0:
             # view an example batch
-            logger.time("train_plot")
-            plg.view_batch(cf, batch, results_dict, has_colorchannels=cf.has_colorchannels, show_gt_labels=True,
-                           out_file=os.path.join(cf.plot_dir, 'batch_example_train_{}.png'.format(cf.fold)))
-            logger.info("generated train-example plot in {:.2f}s".format(logger.time("train_plot")))
+            utils.split_off_process(plg.view_batch, cf, batch, results_dict, has_colorchannels=cf.has_colorchannels,
+                                    show_gt_labels=True, get_time="train-example plot",
+                                    out_file=os.path.join(cf.plot_dir, 'batch_example_train_{}.png'.format(cf.fold)))
 
 
         logger.time("evals")
@@ -149,10 +148,9 @@ def train(cf, logger):
 
             #------------ val eval -------------
             if (epoch - 1) % cf.plot_frequency == 0:
-                logger.time("val_plot")
-                plg.view_batch(cf, batch, results_dict, has_colorchannels=cf.has_colorchannels, show_gt_labels=True,
-                               out_file=os.path.join(cf.plot_dir, 'batch_example_val_{}.png'.format(cf.fold)))
-                logger.info("generated val plot in {:.2f}s".format(logger.time("val_plot")))
+                utils.split_off_process(plg.view_batch, cf, batch, results_dict, has_colorchannels=cf.has_colorchannels,
+                                        show_gt_labels=True, get_time="val-example plot",
+                                        out_file=os.path.join(cf.plot_dir, 'batch_example_val_{}.png'.format(cf.fold)))
 
             logger.time("evals")
             _, monitor_metrics['val'] = val_evaluator.evaluate_predictions(val_results_list, monitor_metrics['val'])

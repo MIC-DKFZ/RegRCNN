@@ -18,6 +18,7 @@
 import sys
 import os
 import subprocess
+from multiprocessing import Process
 import threading
 import pickle
 import importlib.util
@@ -77,6 +78,13 @@ def IO_safe(func, *args, _tries=5, _raise=True, **kwargs):
                                                                                                    "" if _try == 0 else "s",
                                                                                                    e))
                 continue
+
+def split_off_process(target, *args, **kwargs):
+    """Start a process that won't block parent script.
+    No join(), no return value. Before parent exits, it waits for this to finish.
+    """
+    p = Process(target=target, args=tuple(args), kwargs=kwargs, daemon=False)
+    p.start()
 
 
 def query_nvidia_gpu(device_id, d_keyword=None, no_units=False):

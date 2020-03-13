@@ -33,6 +33,7 @@ from tensorboard.backend.event_processing.event_multiplexer import EventMultiple
 import sys
 import os
 import warnings
+import time
 
 from copy import deepcopy
 
@@ -687,7 +688,7 @@ def plot_batchgen_distribution(cf, pids, p_probs, balance_target, out_file=None)
 
     plt.close()
 
-def plot_batchgen_stats(cf, stats, target_name, unique_ts, out_file=None):
+def plot_batchgen_stats(cf, stats, empties, target_name, unique_ts, out_file=None):
     """Plot bar chart showing RoI frequencies and empty-sample count of batch stats recorded by BatchGenerator.
     :param cf: config.
     :param stats: statistics as supplied by BatchGenerator class.
@@ -710,7 +711,7 @@ def plot_batchgen_stats(cf, stats, target_name, unique_ts, out_file=None):
     colors = [label_dict[t_id].color for t_id in unique_ts]
 
     title = "Training Target Frequencies"
-    title += "\nempty samples: {} ({:.1f}%)".format(stats['empty_samples_count'], stats['empty_samples_count']/total_samples*100)
+    title += "\nempty samples: {}".format(empties)
     rects = plt.bar(names, stats['roi_counts'], color=colors, alpha=0.9, edgecolor=colors)
     ax = plt.gca()
 
@@ -748,8 +749,8 @@ def view_3D_array(arr, outfile, elev=30, azim=30):
 
 def view_batch(cf, batch, res_dict=None, out_file=None, legend=True, show_info=True, has_colorchannels=False,
                isRGB=True, show_seg_ids="all", show_seg_pred=True, show_gt_boxes=True, show_gt_labels=False,
-               roi_items="all", sample_picks=None, vol_slice_picks=None,
-               box_score_thres=None, plot_mods=True, dpi=200, vmin=None, return_fig=False):
+               roi_items="all", sample_picks=None, vol_slice_picks=None, box_score_thres=None, plot_mods=True,
+               dpi=200, vmin=None, return_fig=False, get_time=True):
     r""" View data and target entries of a batch.
 
     Batch expected as dic with entries 'data' and 'seg' holding np.arrays of
@@ -785,7 +786,7 @@ def view_batch(cf, batch, res_dict=None, out_file=None, legend=True, show_info=T
      intra-batch.
     :param return_fig: whether to return created figure.
     """
-
+    stime = time.time()
     # pfix = prefix, ptfix = postfix
     patched_patient = 'patch_crop_coords' in list(batch.keys())
     pfix = 'patient_' if patched_patient else ''
@@ -1088,6 +1089,8 @@ def view_batch(cf, batch, res_dict=None, out_file=None, legend=True, show_info=T
             IO_safe(plt.savefig, fname=out_file, dpi=dpi, pad_inches=0.0, bbox_inches='tight', _raise=False)
         else:
             plt.savefig(out_file, dpi=dpi, pad_inches=0.0, bbox_inches='tight')
+    if get_time:
+        print("generated {} in {:.3f}s".format("plot" if not isinstance(get_time, str) else get_time, time.time()-stime))
     if return_fig:
         return plt.gcf()
     plt.clf()

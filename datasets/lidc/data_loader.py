@@ -39,9 +39,10 @@ from batchgenerators.dataloading.multi_threaded_augmenter import MultiThreadedAu
 from batchgenerators.transforms.spatial_transforms import SpatialTransform
 from batchgenerators.transforms.crop_and_pad_transforms import CenterCropTransform
 
+
 import utils.dataloader_utils as dutils
 from utils.dataloader_utils import ConvertSegToBoundingBoxCoordinates
-
+from utils.dataloader_utils import BatchGenerator as BatchGeneratorParent
 
 def save_obj(obj, name):
     """Pickle a python object."""
@@ -446,7 +447,7 @@ class PatientBatchIterator_merged(dutils.PatientBatchIterator):
         return out_batch
 
 # single-annotator GTs
-class BatchGenerator_sa(dutils.BatchGenerator):
+class BatchGenerator_sa(BatchGeneratorParent):
     """
     creates the training/validation batch generator. Samples n_batch_size patients (draws a slice from each patient if 2D)
     from the data set while maintaining foreground-class balance. Returned patches are cropped/padded to pre_crop_size.
@@ -517,19 +518,28 @@ class BatchGenerator_sa(dutils.BatchGenerator):
         unique_ts_total = set()
         self.p_probs = []
         self.sample_stats = []
-        p = Pool(processes=cf.n_workers)
-        mp_res = p.starmap(self.balance_target_distribution, [(r, name=="train") for r in range(self.rater_bsize)])
-        p.close()
-        p.join()
 
-        for r, res in enumerate(mp_res):
-            p_probs, unique_ts, sample_stats = res
+        # todo resolve pickling error
+        # p = Pool(processes=min(self.rater_bsize, cf.n_workers))
+        # mp_res = p.starmap(self.balance_target_distribution, [(r, name=="train") for r in range(self.rater_bsize)])
+        # p.close()
+        # p.join()
+        # for r, res in enumerate(mp_res):
+        #     p_probs, unique_ts, sample_stats = res
+        #     self.p_probs.append(p_probs)
+        #     self.sample_stats.append(sample_stats)
+        #     unique_ts_total.update(unique_ts)
+
+        for r in range(self.rater_bsize):
+            # todo multiprocess. takes forever
+            p_probs, unique_ts, sample_stats = self.balance_target_distribution(r, plot=name == "train")
             self.p_probs.append(p_probs)
             self.sample_stats.append(sample_stats)
             unique_ts_total.update(unique_ts)
 
         self.unique_ts = sorted(list(unique_ts_total))
-
+        self.stats = {"roi_counts": np.zeros(len(self.unique_ts,), dtype='uint32'),
+                      "empty_counts": np.zeros(len(self.unique_ts,), dtype='uint32')}
 
     def generate_train_batch(self):
 
@@ -663,7 +673,7 @@ class BatchGenerator_sa(dutils.BatchGenerator):
         data = np.array(batch_data).astype('float16')
         seg = np.array(batch_segs).astype('uint8')
         batch = {'data': data, 'seg': seg, 'pid': batch_pids, 'rater_id': rater,
-                'roi_counts':batch_roi_counts, 'empty_counts': batch_empty_counts}
+                'roi_counts': batch_roi_counts, 'empty_counts': batch_empty_counts}
         for key,val in batch_roi_items.items(): #extend batch dic by roi-wise items (obs, class ids, regression vectors...)
             batch[key] = np.array(val)
 

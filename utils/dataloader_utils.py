@@ -314,6 +314,7 @@ class BatchGenerator(SlimDataLoaderBase):
         self.cf = cf
         self.random_count = int(cf.batch_random_ratio * cf.batch_size)
         self.plot_dir = os.path.join(self.cf.plot_dir, 'train_generator')
+        os.makedirs(self.plot_dir, exist_ok=True)
         self.max_batches = max_batches
         self.raise_stop = raise_stop_iteration
         self.thread_id = 0
@@ -331,9 +332,6 @@ class BatchGenerator(SlimDataLoaderBase):
                 "at least one batch needed per thread. dataset size: {}, n_threads: {}, batch_size: {}.".format(
                     len(self.dataset_pids), self.number_of_threads_in_multithreaded, self.batch_size)
             self.lock = Lock()
-
-        self.stats = {"roi_counts": np.zeros((self.cf.num_classes,), dtype='uint32'),
-                      "empty_counts": np.zeros((self.cf.num_classes,), dtype='uint32')}
 
         if hasattr(cf, "balance_target"):
             # WARNING: "balance targets are only implemented for 1-d targets (or 1-component vectors)"
@@ -394,26 +392,8 @@ class BatchGenerator(SlimDataLoaderBase):
                 expectations.append((self.p_probs * self.sample_stats[targ]).sum())
             assert np.allclose(expectations, expectations[0], atol=1e-4), "expectation values for fgs/bgs: {}".format(expectations)
 
-        # get unique foreground targets per patient, assign -1 to an "empty" patient (has no foreground)
-        #patient_ts = [np.unique(lst) if len([t for t in lst if np.any(t>0)])>0 else [-1] for lst in self.targets.values()]
-        #bg_mask = np.array([np.all(lst == [-1]) for lst in patient_ts])
-        #unique_ts, t_counts = np.unique([t for lst in patient_ts for t in lst if t!=-1], return_counts=True)
-        # t_probs = t_counts.sum() / t_counts
-        # t_probs /= t_probs.sum()
-        # t_probs = {t : t_probs[ix] for ix, t in enumerate(unique_ts)}
-        # t_probs[-1] = 0.
-        # # fail if balance target is not a number (i.e., a vector)
-        # self.p_probs = np.array([ max([t_probs[t] for t in lst]) for lst in patient_ts ])
-        # #normalize
-        # self.p_probs /= self.p_probs.sum()
-        # rescale probs of empty samples
-        # if not 0 == self.p_probs[bg_mask].shape[0]:
-        #     #rescale_f = (1 - self.cf.empty_samples_ratio) / self.p_probs[~bg_mask].sum()
-        #     rescale_f = 1 / self.p_probs[~bg_mask].sum()
-        #     self.p_probs *= rescale_f
-        #     self.p_probs[bg_mask] = 0. #self.cf.empty_samples_ratio/self.p_probs[bg_mask].shape[0]
-
-        #self.unique_ts = unique_ts
+        self.stats = {"roi_counts": np.zeros(len(self.unique_ts,), dtype='uint32'),
+                      "empty_counts": np.zeros(len(self.unique_ts,), dtype='uint32')}
 
         if plot:
             os.makedirs(self.plot_dir, exist_ok=True)

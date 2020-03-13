@@ -137,7 +137,6 @@ class BatchGenerator(dutils.BatchGenerator):
         self.empty_samples_max_ratio = 0.6
 
         self.balance_target_distribution(plot=sample_pids_w_replace)
-        self.stats = {"roi_counts": np.zeros((len(self.unique_ts),), dtype='uint32'), "empty_samples_count": 0}
 
     def generate_train_batch(self):
         # everything done in here is per batch
@@ -147,11 +146,12 @@ class BatchGenerator(dutils.BatchGenerator):
 
         batch_data, batch_segs, batch_patient_targets = [], [], []
         batch_roi_items = {name: [] for name in self.cf.roi_items}
-        # record roi count of classes in batch
-        # empty count for full bg samples (empty slices in 2D/patients in 3D) in slot num_classes (last)
-        batch_roi_counts, empty_samples_count = np.zeros((len(self.unique_ts),), dtype='uint32'), 0
+        # record roi count and empty count of classes in batch
+        # empty count for no presence of resp. class in whole sample (empty slices in 2D/patients in 3D)
+        batch_roi_counts = np.zeros((len(self.unique_ts),), dtype='uint32')
+        batch_empty_counts = np.zeros((len(self.unique_ts),), dtype='uint32')
 
-        for b in range(self.batch_size):
+        for b in range(len(batch_pids)):
             patient = self._data[batch_pids[b]]
 
             data = np.load(patient['data'], mmap_mode='r').astype('float16')[np.newaxis]
@@ -161,7 +161,7 @@ class BatchGenerator(dutils.BatchGenerator):
             if self.cf.dim == 2:
                 elig_slices, choose_fg = [], False
                 if len(patient['fg_slices']) > 0:
-                    if empty_samples_count / self.batch_size >= self.empty_samples_max_ratio or np.random.rand(
+                    if np.all(batch_empty_counts / self.batch_size >= self.empty_samples_max_ratio) or np.random.rand(
                             1) <= self.p_fg:
                         # fg is to be picked
                         for tix in np.argsort(batch_roi_counts):
@@ -196,7 +196,8 @@ class BatchGenerator(dutils.BatchGenerator):
             if np.any(dim_cropflags):
                 # sample pixel from random ROI and shift center, if possible, to that pixel
                 if self.cf.dim==3:
-                    choose_fg = (empty_samples_count/self.batch_size>=self.empty_samples_max_ratio) or np.random.rand(1) <= self.p_fg
+                    choose_fg = np.any(batch_empty_counts/self.batch_size>=self.empty_samples_max_ratio) or \
+                                np.random.rand(1) <= self.p_fg
                 if choose_fg and np.any(seg):
                     available_roi_ids = np.unique(seg)[1:]
                     for tix in np.argsort(batch_roi_counts):
@@ -246,16 +247,24 @@ class BatchGenerator(dutils.BatchGenerator):
 
             if self.cf.dim == 3:
                 for tix in range(len(self.unique_ts)):
-                    batch_roi_counts[tix] += np.count_nonzero(patient[self.balance_target] == self.unique_ts[tix])
+                    non_zero = np.count_nonzero(patient[self.balance_target] == self.unique_ts[tix])
+                    batch_roi_counts[tix] += non_zero
+                    batch_empty_counts[tix] += int(non_zero==0)
+                    # todo remove assert when checked
+                    if not np.any(seg):
+                        assert non_zero==0
             elif self.cf.dim == 2:
                 for tix in range(len(self.unique_ts)):
-                    batch_roi_counts[tix] += np.count_nonzero(patient[self.balance_target][np.unique(seg[seg>0]) - 1] == self.unique_ts[tix])
-            if not np.any(seg):
-                empty_samples_count += 1
+                    non_zero = np.count_nonzero(patient[self.balance_target][np.unique(seg[seg>0]) - 1] == self.unique_ts[tix])
+                    batch_roi_counts[tix] += non_zero
+                    batch_empty_counts[tix] += int(non_zero == 0)
+                    # todo remove assert when checked
+                    if not np.any(seg):
+                        assert non_zero==0
 
         batch = {'data': np.array(batch_data), 'seg': np.array(batch_segs).astype('uint8'),
                  'pid': batch_pids,
-                 'roi_counts': batch_roi_counts, 'empty_samples_count': empty_samples_count}
+                 'roi_counts': batch_roi_counts, 'empty_counts': batch_empty_counts}
         for key,val in batch_roi_items.items(): #extend batch dic by entries of observables dic
             batch[key] = np.array(val)
 
@@ -421,7 +430,7 @@ class PatientBatchIterator(dutils.PatientBatchIterator):
         return out_batch
 
 
-def create_data_gen_pipeline(cf, patient_data, do_aug=True, sample_pids_w_replace=True):
+def create_data_gen_pipeline(cf, patient_data, do_aug=True, **kwargs):
     """
     create mutli-threaded train/val/test batch generation and augmentation pipeline.
     :param patient_data: dictionary containing one dictionary per patient in the train/test subset.
@@ -430,7 +439,7 @@ def create_data_gen_pipeline(cf, patient_data, do_aug=True, sample_pids_w_replac
     """
 
     # create instance of batch generator as first element in pipeline.
-    data_gen = BatchGenerator(cf, patient_data, sample_pids_w_replace=sample_pids_w_replace)
+    data_gen = BatchGenerator(cf, patient_data, **kwargs)
 
     my_transforms = []
     if do_aug:
@@ -485,15 +494,18 @@ def get_train_generators(cf, logger, data_statistics=False):
         dataset.calc_statistics(subsets={"train": train_ids, "val": val_ids, "test": test_ids}, plot_dir=
         os.path.join(cf.plot_dir,"dataset"))
 
+
+
     batch_gen = {}
     batch_gen['train'] = create_data_gen_pipeline(cf, train_data, do_aug=cf.do_aug, sample_pids_w_replace=True)
-    batch_gen['val_sampling'] = create_data_gen_pipeline(cf, val_data, do_aug=False, sample_pids_w_replace=False)
-
     if cf.val_mode == 'val_patient':
         batch_gen['val_patient'] = PatientBatchIterator(cf, val_data, mode='validation')
         batch_gen['n_val'] = len(val_ids) if cf.max_val_patients=="all" else min(len(val_ids), cf.max_val_patients)
     elif cf.val_mode == 'val_sampling':
-        batch_gen['n_val'] = cf.num_val_batches if cf.num_val_batches != "all" else len(val_data)
+        batch_gen['n_val'] = int(np.ceil(len(val_data)/cf.batch_size)) if cf.num_val_batches == "all" else cf.num_val_batches
+        # in current setup, val loader is used like generator. with max_batches being applied in train routine.
+        batch_gen['val_sampling'] = create_data_gen_pipeline(cf, val_data, do_aug=False, sample_pids_w_replace=False,
+                                                             max_batches=None, raise_stop_iteration=False)
 
     return batch_gen
 
@@ -526,7 +538,7 @@ def get_test_generator(cf, logger):
 if __name__=="__main__":
 
     import utils.exp_utils as utils
-    from configs import Configs
+    from datasets.toy.configs import Configs
 
     cf = Configs()
 

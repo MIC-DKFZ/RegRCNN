@@ -307,7 +307,7 @@ class BatchGenerator(SlimDataLoaderBase):
     :return dictionary containing the batch data / seg / pids as lists; the augmenter will later concatenate them into an array.
     """
 
-    def __init__(self, cf, data, sample_pids_w_replace, max_batches=None, raise_stop_iteration=False, n_threads=None, seed=0):
+    def __init__(self, cf, data, sample_pids_w_replace=True, max_batches=None, raise_stop_iteration=False, n_threads=None, seed=0):
         if n_threads is None:
             n_threads = cf.n_workers
         super(BatchGenerator, self).__init__(data, cf.batch_size, number_of_threads_in_multithreaded=n_threads)
@@ -332,7 +332,8 @@ class BatchGenerator(SlimDataLoaderBase):
                     len(self.dataset_pids), self.number_of_threads_in_multithreaded, self.batch_size)
             self.lock = Lock()
 
-        self.stats = {"roi_counts": np.zeros((self.cf.num_classes,), dtype='uint32'), "empty_samples_count": 0}
+        self.stats = {"roi_counts": np.zeros((self.cf.num_classes,), dtype='uint32'),
+                      "empty_counts": np.zeros((self.cf.num_classes,), dtype='uint32')}
 
         if hasattr(cf, "balance_target"):
             # WARNING: "balance targets are only implemented for 1-d targets (or 1-component vectors)"
@@ -349,24 +350,62 @@ class BatchGenerator(SlimDataLoaderBase):
         self.batches_produced = 0
         self.thread_ids = self.rgen.permutation(self.eligible_pids[self.thread_id])
 
+    @staticmethod
+    def sample_targets_to_weights(targets, fg_bg_weights):
+        weights = targets * fg_bg_weights
+        return weights
+
     def balance_target_distribution(self, plot=False):
-        """
+        """Impose a drawing distribution over samples.
+         Distribution should be designed so that classes' fg and bg examples are (as good as possible) shown in
+         equal frequency. Since we are dealing with rois, fg/bg weights count a sample (e.g., a patient) with
+         **at least** one occurrence as fg, otherwise bg. For fg weights among classes, each RoI counts.
+
         :param all_pids:
         :param self.targets:  dic holding {patient_specifier : patient-wise-unique ROI targets}
         :return: probability distribution over all pids. draw without replace from this.
         """
+        self.unique_ts = np.unique([v for pat in self.targets.values() for v in pat])
+        self.sample_stats = pd.DataFrame(columns=[str(ix)+suffix for ix in self.unique_ts for suffix in ["", "_bg"]], index=list(self.targets.keys()))
+        for pid in self.sample_stats.index:
+            for targ in self.unique_ts:
+                fg_count = np.count_nonzero(self.targets[pid] == targ)
+                self.sample_stats.loc[pid, str(targ)] = int(fg_count > 0)
+                self.sample_stats.loc[pid, str(targ)+"_bg"] = int(fg_count == 0)
+
+        self.targ_stats = self.sample_stats.agg(
+            ("sum", lambda col: col.sum() / len(self._data)), axis=0, sort=False).rename({"<lambda>": "relative"})
+
+        anchor = 1. - self.targ_stats.loc["relative"].iloc[0]
+        self.fg_bg_weights = anchor / self.targ_stats.loc["relative"]
+        cum_weights = anchor * len(self.fg_bg_weights)
+        self.fg_bg_weights /= cum_weights
+
+        self.p_probs = self.sample_stats.apply(self.sample_targets_to_weights, args=(self.fg_bg_weights,), axis=1).sum(axis=1)
+        self.p_probs = self.p_probs / self.p_probs.sum()
+        if plot:
+            print("Applying class-weights:\n {}".format(self.fg_bg_weights))
+        if len(self.sample_stats.columns) == 2:
+            # assert that probs are calc'd correctly:
+            # (self.p_probs * self.sample_stats["1"]).sum() == (self.p_probs * self.sample_stats["1_bg"]).sum()
+            # only works if one label per patient (multi-label expectations depend on multi-label occurences).
+            expectations = []
+            for targ in self.sample_stats.columns:
+                expectations.append((self.p_probs * self.sample_stats[targ]).sum())
+            assert np.allclose(expectations, expectations[0], atol=1e-4), "expectation values for fgs/bgs: {}".format(expectations)
+
         # get unique foreground targets per patient, assign -1 to an "empty" patient (has no foreground)
-        patient_ts = [np.unique(lst) if len([t for t in lst if np.any(t>0)])>0 else [-1] for lst in self.targets.values()]
+        #patient_ts = [np.unique(lst) if len([t for t in lst if np.any(t>0)])>0 else [-1] for lst in self.targets.values()]
         #bg_mask = np.array([np.all(lst == [-1]) for lst in patient_ts])
-        unique_ts, t_counts = np.unique([t for lst in patient_ts for t in lst if t!=-1], return_counts=True)
-        t_probs = t_counts.sum() / t_counts
-        t_probs /= t_probs.sum()
-        t_probs = {t : t_probs[ix] for ix, t in enumerate(unique_ts)}
-        t_probs[-1] = 0.
-        # fail if balance target is not a number (i.e., a vector)
-        self.p_probs = np.array([ max([t_probs[t] for t in lst]) for lst in patient_ts ])
-        #normalize
-        self.p_probs /= self.p_probs.sum()
+        #unique_ts, t_counts = np.unique([t for lst in patient_ts for t in lst if t!=-1], return_counts=True)
+        # t_probs = t_counts.sum() / t_counts
+        # t_probs /= t_probs.sum()
+        # t_probs = {t : t_probs[ix] for ix, t in enumerate(unique_ts)}
+        # t_probs[-1] = 0.
+        # # fail if balance target is not a number (i.e., a vector)
+        # self.p_probs = np.array([ max([t_probs[t] for t in lst]) for lst in patient_ts ])
+        # #normalize
+        # self.p_probs /= self.p_probs.sum()
         # rescale probs of empty samples
         # if not 0 == self.p_probs[bg_mask].shape[0]:
         #     #rescale_f = (1 - self.cf.empty_samples_ratio) / self.p_probs[~bg_mask].sum()
@@ -374,7 +413,7 @@ class BatchGenerator(SlimDataLoaderBase):
         #     self.p_probs *= rescale_f
         #     self.p_probs[bg_mask] = 0. #self.cf.empty_samples_ratio/self.p_probs[bg_mask].shape[0]
 
-        self.unique_ts = unique_ts
+        #self.unique_ts = unique_ts
 
         if plot:
             os.makedirs(self.plot_dir, exist_ok=True)
@@ -426,13 +465,18 @@ class BatchGenerator(SlimDataLoaderBase):
             name=str(self.unique_ts[tix])
             print_f('{}: {} rois seen ({:.1f}%).'.format(name, count, count / total_count * 100))
         total_samples = self.cf.num_epochs*self.cf.num_train_batches*self.cf.batch_size
-        print_f('empty samples seen: {} ({:.1f}%).\n'.format(self.stats['empty_samples_count'],
-                                                         self.stats['empty_samples_count']/total_samples*100))
+        empties = [
+        '{}: {} ({:.1f}%)'.format(str(name), self.stats['empty_counts'][tix],
+                                    self.stats['empty_counts'][tix]/total_samples*100)
+            for tix, name in enumerate(self.unique_ts)
+        ]
+        empties = ", ".join(empties)
+        print_f('empty samples seen: {}\n'.format(empties))
         if plot:
             if plot_file is None:
                 plot_file = os.path.join(self.plot_dir, "train_gen_stats_{}.png".format(self.cf.fold))
                 os.makedirs(self.plot_dir, exist_ok=True)
-            plg.plot_batchgen_stats(self.cf, self.stats, self.balance_target, self.unique_ts, plot_file)
+            plg.plot_batchgen_stats(self.cf, self.stats, empties, self.balance_target, self.unique_ts, plot_file)
 
 class PatientBatchIterator(SlimDataLoaderBase):
     """

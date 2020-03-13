@@ -42,7 +42,7 @@ from batchgenerators.transforms.crop_and_pad_transforms import CenterCropTransfo
 
 import utils.dataloader_utils as dutils
 from utils.dataloader_utils import ConvertSegToBoundingBoxCoordinates
-from utils.dataloader_utils import BatchGenerator as BatchGeneratorParent
+
 
 def save_obj(obj, name):
     """Pickle a python object."""
@@ -447,7 +447,7 @@ class PatientBatchIterator_merged(dutils.PatientBatchIterator):
         return out_batch
 
 # single-annotator GTs
-class BatchGenerator_sa(BatchGeneratorParent):
+class BatchGenerator_sa(dutils.BatchGenerator):
     """
     creates the training/validation batch generator. Samples n_batch_size patients (draws a slice from each patient if 2D)
     from the data set while maintaining foreground-class balance. Returned patches are cropped/padded to pre_crop_size.

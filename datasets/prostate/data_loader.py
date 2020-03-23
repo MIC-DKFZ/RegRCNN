@@ -559,8 +559,8 @@ def create_data_gen_pipeline(cf, patient_data, do_aug=True, sample_pids_w_replac
     #my_transforms.append(ConvertSegToOnehotTransform(classes=range(cf.num_seg_classes)))
     all_transforms = Compose(my_transforms)
     #MTAugmenter creates iterator from data iterator data_gen after applying the composed transform all_transforms
-    multithreaded_generator = MultiThreadedAugmenter(data_gen, all_transforms, num_processes=cf.n_workers,
-                                                     seeds=list(np.random.randint(0,cf.n_workers*2,size=cf.n_workers)))
+    multithreaded_generator = MultiThreadedAugmenter(data_gen, all_transforms, num_processes=data_gen.n_filled_threads,
+                                                     seeds=range(data_gen.n_filled_threads))
     return multithreaded_generator
 
 def get_train_generators(cf, logger, data_statistics=True):

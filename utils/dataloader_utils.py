@@ -322,15 +322,22 @@ class BatchGenerator(SlimDataLoaderBase):
 
         self.dataset_length = len(self._data)
         self.dataset_pids = list(self._data.keys())
+
+        self.n_filled_threads = min(int(self.dataset_length/self.batch_size), self.number_of_threads_in_multithreaded)
+        if self.n_filled_threads != self.number_of_threads_in_multithreaded:
+            print("Adjusting nr of threads from {} to {}.".format(self.number_of_threads_in_multithreaded,
+                                                                  self.n_filled_threads))
+
         self.rgen = np.random.RandomState(seed=seed)
         self.eligible_pids = self.rgen.permutation(self.dataset_pids.copy())
-        self.eligible_pids = np.array_split(self.eligible_pids, self.number_of_threads_in_multithreaded)
+        self.eligible_pids = np.array_split(self.eligible_pids, self.n_filled_threads)
         self.eligible_pids = sorted(self.eligible_pids, key=len, reverse=True)
+
         self.sample_pids_w_replace = sample_pids_w_replace
         if not self.sample_pids_w_replace:
-            assert len(self.dataset_pids) / self.number_of_threads_in_multithreaded >= self.batch_size, \
+            assert len(self.dataset_pids) / self.n_filled_threads >= self.batch_size, \
                 "at least one batch needed per thread. dataset size: {}, n_threads: {}, batch_size: {}.".format(
-                    len(self.dataset_pids), self.number_of_threads_in_multithreaded, self.batch_size)
+                    len(self.dataset_pids), self.n_filled_threads, self.batch_size)
             self.lock = Lock()
 
         if hasattr(cf, "balance_target"):
@@ -403,7 +410,7 @@ class BatchGenerator(SlimDataLoaderBase):
         return self.p_probs
 
     def get_batch_pids(self):
-        if self.max_batches is not None and self.batches_produced * self.number_of_threads_in_multithreaded \
+        if self.max_batches is not None and self.batches_produced * self.n_filled_threads \
                 + self.thread_id >= self.max_batches:
             self.reset()
             raise StopIteration

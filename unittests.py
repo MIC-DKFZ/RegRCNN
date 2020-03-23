@@ -590,7 +590,8 @@ class MulithreadedDataiterator(unittest.TestCase):
             #assert len(np.setdiff1d(val_loader.generator.dataset_pids, uni))==0, "not all val pids were shown."
             assert len(np.setdiff1d(uni, val_loader.generator.dataset_pids))==0, "pids shown that are not val set. impossible?"
 
-
+        cf.n_workers = os.cpu_count()
+        cf.batch_size = int(val_loader.generator.dataset_length / cf.n_workers) + 2
         val_loader = dloader.create_data_gen_pipeline(cf, val_loader.generator._data, do_aug=False, sample_pids_w_replace=False,
                                                              max_batches=None, raise_stop_iteration=True)
         for epoch in range(2):

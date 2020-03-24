@@ -61,7 +61,8 @@ def train(cf, logger):
 
     starting_epoch = 1
     if cf.resume_from_checkpoint:
-        starting_epoch = utils.load_checkpoint(cf.resume_from_checkpoint, net, optimizer)
+        starting_epoch, net, optimizer, model_selector = \
+            utils.load_checkpoint(cf.resume_from_checkpoint, net, optimizer, model_selector)
         logger.info('resumed from checkpoint {} at epoch {}'.format(cf.resume_from_checkpoint, starting_epoch))
 
     # prepare monitoring
@@ -233,7 +234,7 @@ if __name__ == '__main__':
         cf = utils.prep_exp(args.dataset_name, args.exp_dir, args.server_env, args.use_stored_settings)
         if args.dev:
             folds = [0,1]
-            cf.batch_size, cf.num_epochs, cf.min_save_thresh, cf.save_n_models = 3 if cf.dim==2 else 1, 1, 0, 1
+            cf.batch_size, cf.num_epochs, cf.min_save_thresh, cf.save_n_models = 3 if cf.dim==2 else 1, 2, 0, 1
             cf.num_train_batches, cf.num_val_batches, cf.max_val_patients = 5, 1, 1
             cf.test_n_epochs =  cf.save_n_models
             cf.max_test_patients = 1

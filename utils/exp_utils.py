@@ -24,6 +24,7 @@ import pickle
 import importlib.util
 import psutil
 import time
+import nvidia_smi
 
 import logging
 from torch.utils.tensorboard import SummaryWriter
@@ -79,12 +80,13 @@ def IO_safe(func, *args, _tries=5, _raise=True, **kwargs):
                                                                                                    e))
                 continue
 
-def split_off_process(target, *args, **kwargs):
+def split_off_process(target, *args, daemon=False, **kwargs):
     """Start a process that won't block parent script.
-    No join(), no return value. Before parent exits, it waits for this to finish.
+    No join(), no return value. If daemon=False: before parent exits, it waits for this to finish.
     """
-    p = Process(target=target, args=tuple(args), kwargs=kwargs, daemon=False)
+    p = Process(target=target, args=tuple(args), kwargs=kwargs, daemon=daemon)
     p.start()
+    return p
 
 
 def query_nvidia_gpu(device_id, d_keyword=None, no_units=False):
@@ -144,21 +146,30 @@ class Nvidia_GPU_Logger(object):
 
     def get_vals(self):
 
-        cmd = ['nvidia-settings', '-t', '-q', 'GPUUtilization']
-        gpu_util = subprocess.check_output(cmd).strip().decode('utf-8').split(",")
-        gpu_util = dict([f.strip().split("=") for f in gpu_util])
-        cmd[-1] = 'UsedDedicatedGPUMemory'
-        gpu_used_mem = subprocess.check_output(cmd).strip().decode('utf-8')
-        current_vals = {"gpu_mem_alloc": gpu_used_mem, "gpu_graphics_util": int(gpu_util['graphics']),
-                        "gpu_mem_util": gpu_util['memory'], "time": time.time()}
+        # cmd = ['nvidia-settings', '-t', '-q', 'GPUUtilization']
+        # gpu_util = subprocess.check_output(cmd).strip().decode('utf-8').split(",")
+        # gpu_util = dict([f.strip().split("=") for f in gpu_util])
+        # cmd[-1] = 'UsedDedicatedGPUMemory'
+        # gpu_used_mem = subprocess.check_output(cmd).strip().decode('utf-8')
+
+
+        nvidia_smi.nvmlInit()
+        # card id 0 hardcoded here, there is also a call to get all available card ids, so we could iterate
+        self.gpu_handle = nvidia_smi.nvmlDeviceGetHandleByIndex(0)
+        util_res = nvidia_smi.nvmlDeviceGetUtilizationRates(self.gpu_handle)
+        #mem_res = nvidia_smi.nvmlDeviceGetMemoryInfo(self.gpu_handle)
+        # current_vals = {"gpu_mem_alloc": mem_res.used / (1024**2), "gpu_graphics_util": int(gpu_util['graphics']),
+        #                 "gpu_mem_util": gpu_util['memory'], "time": time.time()}
+        current_vals = {"gpu_graphics_util": float(util_res.gpu),
+                        "time": time.time()}
         return current_vals
 
     def loop(self, interval):
         i = 0
         while True:
-            self.get_vals()
+            current_vals = self.get_vals()
             self.log["time"].append(time.time())
-            self.log["gpu_util"].append(self.current_vals["gpu_graphics_util"])
+            self.log["gpu_util"].append(current_vals["gpu_graphics_util"])
             if self.count is not None:
                 i += 1
                 if i == self.count:
@@ -353,9 +364,10 @@ class CombinedLogger(object):
             self.sysmetrics_interval = interval
             self.gpu_logger = Nvidia_GPU_Logger()
             self.sysmetrics_start_time = time.time()
-            self.thread = threading.Thread(target=self.sysmetrics_loop)
-            self.thread.daemon = True
-            self.thread.start()
+            self.sys_metrics_process = split_off_process(target=self.sysmetrics_loop, daemon=True)
+            # self.thread = threading.Thread(target=self.sysmetrics_loop)
+            # self.thread.daemon = True
+            # self.thread.start()
 
     def sysmetrics_save(self, out_file):
         self.sysmetrics.to_pickle(out_file)
@@ -433,6 +445,7 @@ class CombinedLogger(object):
         return
 
     def __del__(self):  # otherwise might produce multiple prints e.g. in ipython console
+        self.sys_metrics_process.terminate()
         for hdlr in self.pylogger.handlers:
             hdlr.close()
         self.pylogger.handlers = []

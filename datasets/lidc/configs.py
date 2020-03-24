@@ -98,7 +98,7 @@ class Configs(DefaultConfigs):
         # handling of noisy gts.
         # choose 'merged' for single, merged gt per image, or 'single_annotator' for four gts per image.
         # validation is always performed on same gt kind as training, testing always on merged gt.
-        self.training_gts = "sa"
+        self.training_gts = "merged"
 
         # select modalities from preprocessed data
         self.channels = [0]

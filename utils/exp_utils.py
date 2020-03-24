@@ -560,7 +560,7 @@ class ModelSelector:
         self.model_index.loc[epoch, ["score", "criteria_values"]] = epoch_score, {cr: metrics[cr][-1] for cr in crita.keys()}
 
         nonna_ics = self.model_index["score"].dropna(axis=0).index
-        order = np.argsort(self.model_index.loc[nonna_ics, "score"].values)[::-1]
+        order = np.argsort(self.model_index.loc[nonna_ics, "score"].to_numpy(), kind="stable")[::-1]
         self.model_index.loc[nonna_ics, "rank"] = np.argsort(order) + 1 # no zero-indexing for ranks (best rank is 1).
 
         rank = int(self.model_index.loc[epoch, "rank"])
@@ -576,9 +576,10 @@ class ModelSelector:
             clean_up = self.model_index.dropna(axis=0, subset=["file_name"])
             clean_up = clean_up[clean_up["rank"] > self.cf.save_n_models]
             if clean_up.size > 0:
-                subprocess.call("rm {}".format(os.path.join(self.cf.fold_dir, clean_up["file_name"].to_numpy().item())), shell=True)
+                file_name = clean_up["file_name"].to_numpy().item()
+                subprocess.call("rm {}".format(os.path.join(self.cf.fold_dir, file_name)), shell=True)
                 self.logger.info("removed outranked epoch {} at {}".format(clean_up.index.values.item(),
-                                                                       os.path.join(self.cf.fold_dir, clean_up["file_name"].to_numpy().item())))
+                                                                       os.path.join(self.cf.fold_dir, file_name)))
                 self.model_index.loc[clean_up.index, "file_name"] = np.nan
 
         state = {

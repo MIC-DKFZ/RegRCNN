@@ -161,7 +161,11 @@ The data loaders of the provided example data sets employ a custom mechanism wit
 
 The mechanism creates a sampling-likelihood distribution, as shown below, over all available patients (PIDs). At batch generation, some patients are drawn according to this distribution, others are drawn completely randomly (according to a uniform distribution across all patients). The ratio of uniformly and target-dependently drawn patients is set in your configs file by configs.batch_random_ratio. configs.balance_target determines which targets are considered for the balancing distribution.
 
-While the balancing distribution assigns probability 0 to empty patients (contains no object of desired target kind), the random ratio allows for inclusion of those empty patients in the training exposure. Experience has shown, that showing at least one foreground example in each batch is most critical, other properties have less impact.
+The balancing distribution assigns probabilities s.t. expected occurrences of fg and bg RoIs among all classes are as similar as possible.
+The balance is naturally limited by multiple RoIs occurring in the same patient (e.g, if each patient has 4 RoIs of class 1 and 1 RoI of class 2 the best balancing ratio achievable is still 4:1).
+See utils/dataloader_utils.BatchGenerator.balance_target_distribution.
+
+Experience has shown, that showing at least one foreground example in each batch is most critical, other properties have less impact.
 
 <p align="center"><img src="assets/train_gen.png"  width=800><br><br></p>
 

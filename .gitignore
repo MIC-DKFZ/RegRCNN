@@ -7,6 +7,7 @@
 *.jpg
 *.pdf
 *.egg-info
+*.so
 sandbox/*
 .idea/*
 __pycache__/

@@ -806,8 +806,8 @@ class Predictor:
                  - 'seg_preds': pixel-wise predictions. (b, 1, y, x, (z))
                  - loss / class_loss (only in validation mode)
         """
-        if self.mode=="test":
-            self.logger.info('predicting patient {} for fold {} '.format(np.unique(batch['pid']), self.cf.fold))
+        #if self.mode=="test":
+        #    self.logger.info('predicting patient {} for fold {} '.format(np.unique(batch['pid']), self.cf.fold))
 
         # True if patient is provided in patches and predictions need to be tiled.
         self.patched_patient = 'patch_crop_coords' in list(batch.keys())
@@ -904,8 +904,6 @@ class Predictor:
                                                     has_colorchannels=self.cf.has_colorchannels,
                                                     show_gt_labels=True, show_seg_ids='dice' in self.cf.metrics,
                                                     get_time="test-example plot", out_file=out_file)
-                            self.logger.info("split-off example test plot {} in {:.2f}s".format(
-                                os.path.basename(out_file), self.logger.time("test_plot")))
                         except Exception as e:
                             self.logger.info("WARNING: error in view_batch: {}".format(e))
 

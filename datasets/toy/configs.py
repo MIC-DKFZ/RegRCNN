@@ -107,7 +107,7 @@ class Configs(DefaultConfigs):
         #########################
 
         # one out of [2, 3]. dimension the model operates in.
-        self.dim = 2
+        self.dim = 3
 
         # 'class', 'regression', 'regression_bin', 'regression_ken_gal'
         # currently only tested mode is a single-task at a time (i.e., only one task in below list)

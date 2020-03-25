@@ -552,7 +552,7 @@ class ModelSelector:
 
         epoch_score = np.sum([metrics[criterion][-1] * weight for criterion, weight in crita.items() if
                               not np.isnan(metrics[criterion][-1])])
-        if not self.cf.resume_from_checkpoint:
+        if not self.cf.resume:
             epoch_score_check = np.sum([metrics[criterion][epoch] * weight for criterion, weight in crita.items() if
                                   not np.isnan(metrics[criterion][epoch])])
             assert np.all(epoch_score == epoch_score_check)

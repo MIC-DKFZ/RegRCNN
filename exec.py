@@ -60,10 +60,11 @@ def train(cf, logger):
     model_selector = utils.ModelSelector(cf, logger)
 
     starting_epoch = 1
-    if cf.resume_from_checkpoint:
+    if cf.resume:
+        checkpoint_path = os.path.join(cf.fold_dir, "last_state.pth")
         starting_epoch, net, optimizer, model_selector = \
-            utils.load_checkpoint(cf.resume_from_checkpoint, net, optimizer, model_selector)
-        logger.info('resumed from checkpoint {} at epoch {}'.format(cf.resume_from_checkpoint, starting_epoch))
+            utils.load_checkpoint(checkpoint_path, net, optimizer, model_selector)
+        logger.info('resumed from checkpoint {} to epoch {}'.format(checkpoint_path, starting_epoch))
 
     # prepare monitoring
     monitor_metrics = utils.prepare_monitoring(cf)
@@ -216,14 +217,14 @@ if __name__ == '__main__':
                         help='load configs from existing exp_dir instead of source dir. always done for testing, '
                              'but can be set to true to do the same for training. useful in job scheduler environment, '
                              'where source code might change before the job actually runs.')
-    parser.add_argument('--resume_from_checkpoint', type=str, default=None,
-                        help='path to checkpoint. if resuming from checkpoint, the desired fold still needs to be parsed via --folds.')
+    parser.add_argument('--resume', action="store_true", default=False,
+                        help='if given, resume from checkpoint(s) of the specified folds.')
     parser.add_argument('-d', '--dev', default=False, action='store_true', help="development mode: shorten everything")
 
     args = parser.parse_args()
     args.dataset_name = os.path.join("datasets", args.dataset_name) if not "datasets" in args.dataset_name else args.dataset_name
     folds = args.folds
-    resume_from_checkpoint = None if args.resume_from_checkpoint in ['None', 'none'] else args.resume_from_checkpoint
+    resume = None if args.resume in ['None', 'none'] else args.resume
 
     if args.mode == 'create_exp':
         cf = utils.prep_exp(args.dataset_name, args.exp_dir, args.server_env, use_stored_settings=False)
@@ -258,11 +259,11 @@ if __name__ == '__main__':
             """
             cf.fold_dir = os.path.join(cf.exp_dir, 'fold_{}'.format(fold)); cf.fold = fold
             logger.set_logfile(fold=fold)
-            cf.resume_from_checkpoint = resume_from_checkpoint
+            cf.resume = resume
             if not os.path.exists(cf.fold_dir):
                 os.mkdir(cf.fold_dir)
             train(cf, logger)
-            cf.resume_from_checkpoint = None
+            cf.resume = None
             if args.mode == 'train_test':
                 test(cf, logger)
 

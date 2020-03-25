@@ -72,7 +72,7 @@ __device__ T trilinear_interpolate(const T* input, const int height, const int w
   /*  accessing element b,c,y,x,z in 1D-rolled-out array of a tensor with dimensions (B, C, Y, X, Z):
       tensor[b,c,y,x,z] = arr[ (((b*C+c)*Y+y)*X + x)*Z + z ] = arr[ alpha + (y*X + x)*Z + z ]
       with alpha = batch&channel locator = (b*C+c)*YXZ.
-      hence, as current input pointer is already offset by alpha: y,x,z at input[( y*X + x)*Z + z], where
+      hence, as current input pointer is already offset by alpha: y,x,z is at input[( y*X + x)*Z + z], where
       X = width, Z = depth.
   */
   T x00 = linear_interpolate(dis, input[(y0*width+ x0)*depth+z0], input[(y0*width+ x1)*depth+z0]);

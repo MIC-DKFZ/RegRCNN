@@ -24,6 +24,7 @@ import pickle
 import importlib.util
 import psutil
 import time
+import nvidia_smi
 
 import logging
 from torch.utils.tensorboard import SummaryWriter
@@ -79,13 +80,13 @@ def IO_safe(func, *args, _tries=5, _raise=True, **kwargs):
                                                                                                    e))
                 continue
 
-def split_off_process(target, *args, **kwargs):
+def split_off_process(target, *args, daemon=False, **kwargs):
     """Start a process that won't block parent script.
-    No join(), no return value. Before parent exits, it waits for this to finish.
+    No join(), no return value. If daemon=False: before parent exits, it waits for this to finish.
     """
-    p = Process(target=target, args=tuple(args), kwargs=kwargs, daemon=False)
+    p = Process(target=target, args=tuple(args), kwargs=kwargs, daemon=daemon)
     p.start()
-
+    return p
 
 def query_nvidia_gpu(device_id, d_keyword=None, no_units=False):
     """
@@ -144,21 +145,30 @@ class Nvidia_GPU_Logger(object):
 
     def get_vals(self):
 
-        cmd = ['nvidia-settings', '-t', '-q', 'GPUUtilization']
-        gpu_util = subprocess.check_output(cmd).strip().decode('utf-8').split(",")
-        gpu_util = dict([f.strip().split("=") for f in gpu_util])
-        cmd[-1] = 'UsedDedicatedGPUMemory'
-        gpu_used_mem = subprocess.check_output(cmd).strip().decode('utf-8')
-        current_vals = {"gpu_mem_alloc": gpu_used_mem, "gpu_graphics_util": int(gpu_util['graphics']),
-                        "gpu_mem_util": gpu_util['memory'], "time": time.time()}
+        # cmd = ['nvidia-settings', '-t', '-q', 'GPUUtilization']
+        # gpu_util = subprocess.check_output(cmd).strip().decode('utf-8').split(",")
+        # gpu_util = dict([f.strip().split("=") for f in gpu_util])
+        # cmd[-1] = 'UsedDedicatedGPUMemory'
+        # gpu_used_mem = subprocess.check_output(cmd).strip().decode('utf-8')
+
+
+        nvidia_smi.nvmlInit()
+        # card id 0 hardcoded here, there is also a call to get all available card ids, so we could iterate
+        self.gpu_handle = nvidia_smi.nvmlDeviceGetHandleByIndex(0)
+        util_res = nvidia_smi.nvmlDeviceGetUtilizationRates(self.gpu_handle)
+        #mem_res = nvidia_smi.nvmlDeviceGetMemoryInfo(self.gpu_handle)
+        # current_vals = {"gpu_mem_alloc": mem_res.used / (1024**2), "gpu_graphics_util": int(gpu_util['graphics']),
+        #                 "gpu_mem_util": gpu_util['memory'], "time": time.time()}
+        current_vals = {"gpu_graphics_util": float(util_res.gpu),
+                        "time": time.time()}
         return current_vals
 
     def loop(self, interval):
         i = 0
         while True:
-            self.get_vals()
+            current_vals = self.get_vals()
             self.log["time"].append(time.time())
-            self.log["gpu_util"].append(self.current_vals["gpu_graphics_util"])
+            self.log["gpu_util"].append(current_vals["gpu_graphics_util"])
             if self.count is not None:
                 i += 1
                 if i == self.count:
@@ -353,9 +363,10 @@ class CombinedLogger(object):
             self.sysmetrics_interval = interval
             self.gpu_logger = Nvidia_GPU_Logger()
             self.sysmetrics_start_time = time.time()
-            self.thread = threading.Thread(target=self.sysmetrics_loop)
-            self.thread.daemon = True
-            self.thread.start()
+            self.sys_metrics_process = split_off_process(target=self.sysmetrics_loop, daemon=True)
+            # self.thread = threading.Thread(target=self.sysmetrics_loop)
+            # self.thread.daemon = True
+            # self.thread.start()
 
     def sysmetrics_save(self, out_file):
         self.sysmetrics.to_pickle(out_file)
@@ -433,6 +444,7 @@ class CombinedLogger(object):
         return
 
     def __del__(self):  # otherwise might produce multiple prints e.g. in ipython console
+        self.sys_metrics_process.terminate()
         for hdlr in self.pylogger.handlers:
             hdlr.close()
         self.pylogger.handlers = []
@@ -521,8 +533,10 @@ class ModelSelector:
     def __init__(self, cf, logger):
 
         self.cf = cf
-        self.saved_epochs = [-1] * cf.save_n_models
         self.logger = logger
+
+        self.model_index = pd.DataFrame(columns=["rank", "score", "criteria_values", "file_name"],
+                                        index=pd.RangeIndex(self.cf.min_save_thresh, self.cf.num_epochs, name="epoch"))
 
     def run_model_selection(self, net, optimizer, monitor_metrics, epoch):
         """rank epoch via weighted mean from self.cf.model_selection_criteria: {criterion : weight}
@@ -533,47 +547,45 @@ class ModelSelector:
         :return:
         """
         crita = self.cf.model_selection_criteria  # shorter alias
+        metrics =  monitor_metrics['val']
 
-        non_nan_scores = {}
-        for criterion in crita.keys():
-            # exclude first entry bc its dummy None entry
-            non_nan_scores[criterion] = [0 if (ii is None or np.isnan(ii)) else ii for ii in
-                                         monitor_metrics['val'][criterion]][1:]
-            n_epochs = len(non_nan_scores[criterion])
-        epochs_scores = []
-        for e_ix in range(n_epochs):
-            epochs_scores.append(np.sum([weight * non_nan_scores[criterion][e_ix] for
-                                         criterion, weight in crita.items()]) / len(crita.keys()))
+        epoch_score = np.sum([metrics[criterion][-1] * weight for criterion, weight in crita.items() if
+                              not np.isnan(metrics[criterion][-1])])
+        if not self.cf.resume:
+            epoch_score_check = np.sum([metrics[criterion][epoch] * weight for criterion, weight in crita.items() if
+                                  not np.isnan(metrics[criterion][epoch])])
+            assert np.all(epoch_score == epoch_score_check)
 
-        # ranking of epochs according to model_selection_criterion
-        epoch_ranking = np.argsort(epochs_scores)[::-1] + 1  # epochs start at 1
+        self.model_index.loc[epoch, ["score", "criteria_values"]] = epoch_score, {cr: metrics[cr][-1] for cr in crita.keys()}
 
-        # if set in configs, epochs < min_save_thresh are discarded from saving process.
-        epoch_ranking = epoch_ranking[epoch_ranking >= self.cf.min_save_thresh]
+        nonna_ics = self.model_index["score"].dropna(axis=0).index
+        order = np.argsort(self.model_index.loc[nonna_ics, "score"].to_numpy(), kind="stable")[::-1]
+        self.model_index.loc[nonna_ics, "rank"] = np.argsort(order) + 1 # no zero-indexing for ranks (best rank is 1).
 
-        # check if current epoch is among the top-k epchs.
-        if epoch in epoch_ranking[:self.cf.save_n_models]:
+        rank = int(self.model_index.loc[epoch, "rank"])
+        if rank <= self.cf.save_n_models:
+            name = '{}_best_params.pth'.format(epoch)
             if self.cf.server_env:
-                IO_safe(torch.save, net.state_dict(),
-                        os.path.join(self.cf.fold_dir, '{}_best_params.pth'.format(epoch)))
-                # save epoch_ranking to keep info for inference.
-                IO_safe(np.save, os.path.join(self.cf.fold_dir, 'epoch_ranking'), epoch_ranking[:self.cf.save_n_models])
+                IO_safe(torch.save, net.state_dict(), os.path.join(self.cf.fold_dir, name))
             else:
-                torch.save(net.state_dict(), os.path.join(self.cf.fold_dir, '{}_best_params.pth'.format(epoch)))
-                np.save(os.path.join(self.cf.fold_dir, 'epoch_ranking'), epoch_ranking[:self.cf.save_n_models])
-            self.logger.info(
-                "saving current epoch {} at rank {}".format(epoch, np.argwhere(epoch_ranking == epoch)))
-            # delete params of the epoch that just fell out of the top-k epochs.
-            for se in [int(ii.split('_')[0]) for ii in os.listdir(self.cf.fold_dir) if 'best_params' in ii]:
-                if se in epoch_ranking[self.cf.save_n_models:]:
-                    subprocess.call('rm {}'.format(os.path.join(self.cf.fold_dir, '{}_best_params.pth'.format(se))),
-                                    shell=True)
-                    self.logger.info('deleting epoch {} at rank {}'.format(se, np.argwhere(epoch_ranking == se)))
+                torch.save(net.state_dict(), os.path.join(self.cf.fold_dir, name))
+            self.model_index.loc[epoch, "file_name"] = name
+            self.logger.info("saved current epoch {} at rank {}".format(epoch, rank))
+
+            clean_up = self.model_index.dropna(axis=0, subset=["file_name"])
+            clean_up = clean_up[clean_up["rank"] > self.cf.save_n_models]
+            if clean_up.size > 0:
+                file_name = clean_up["file_name"].to_numpy().item()
+                subprocess.call("rm {}".format(os.path.join(self.cf.fold_dir, file_name)), shell=True)
+                self.logger.info("removed outranked epoch {} at {}".format(clean_up.index.values.item(),
+                                                                       os.path.join(self.cf.fold_dir, file_name)))
+                self.model_index.loc[clean_up.index, "file_name"] = np.nan
 
         state = {
             'epoch': epoch,
             'state_dict': net.state_dict(),
             'optimizer': optimizer.state_dict(),
+            'model_index': self.model_index,
         }
 
         if self.cf.server_env:
@@ -581,12 +593,12 @@ class ModelSelector:
         else:
             torch.save(state, os.path.join(self.cf.fold_dir, 'last_state.pth'))
 
-
-def load_checkpoint(checkpoint_path, net, optimizer):
+def load_checkpoint(checkpoint_path, net, optimizer, model_selector):
     checkpoint = torch.load(checkpoint_path)
     net.load_state_dict(checkpoint['state_dict'])
     optimizer.load_state_dict(checkpoint['optimizer'])
-    return checkpoint['epoch']
+    model_selector.model_index = checkpoint["model_index"]
+    return checkpoint['epoch'] + 1, net, optimizer, model_selector
 
 
 def prepare_monitoring(cf):

@@ -33,8 +33,7 @@ class Configs(DefaultConfigs):
         #########################
         #         Prepro        #
         #########################
-
-        self.pp_rootdir = os.path.join('/media/gregor/HDD2TB/data/toy', "cyl1ps_dev")
+        self.pp_rootdir = os.path.join('/home/gregor/datasets/toy', "cyl1ps_dev")
         self.pp_npz_dir = self.pp_rootdir+"_npz"
 
         self.pre_crop_size = [320,320,8] #y,x,z; determines pp data shape (2D easily implementable, but only 3D for now)
@@ -84,8 +83,7 @@ class Configs(DefaultConfigs):
         #########################
         #         I/O           #
         #########################
-
-        self.data_sourcedir = '/home/gregor/data/toy/cyl1ps_dev'
+        self.data_sourcedir = '/home/gregor/datasets/toy/cyl1ps_dev'
 
         if server_env:
             self.data_sourcedir = '/datasets/data_ramien/toy/cyl1ps_dev_npz'
@@ -131,7 +129,7 @@ class Configs(DefaultConfigs):
 
         self.num_epochs = 32
         self.num_train_batches = 120 if self.dim == 2 else 80
-        self.batch_size = 16 if self.dim == 2 else 8
+        self.batch_size = 8 if self.dim == 2 else 4
 
         self.n_cv_splits = 4
         # select modalities from preprocessed data

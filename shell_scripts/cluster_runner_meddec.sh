@@ -45,19 +45,18 @@ export CUDA_CACHE_PATH
 
 export OMP_NUM_THREADS=1 # this is a work-around fix for batchgenerators to deal with numpy-inherent multi-threading.
 
-if [ ! -z "${folds}" ]; then
-	if [ -z "${resume}" ]; then
-		resume='None'
-	else
-		resume=${exp_dir}"/fold_${folds}/last_state.pth"
-		echo "Resuming from checkpoint at ${resume}."
-	fi
-	python ${source_dir}/exec.py --use_stored_settings --server_env --dataset_name ${dataset_abs_path} --data_dest ${tmp_dir_data} --exp_dir ${exp_dir} --mode ${mode} --folds ${folds} --resume_from_checkpoint ${resume}
-	
-else
-	python ${source_dir}/exec.py --use_stored_settings --server_env --dataset_name ${dataset_abs_path} --data_dest ${tmp_dir_data} --exp_dir ${exp_dir} --mode ${mode}
-	
+launch_opts=${source_dir}/exec.py --use_stored_settings --server_env --dataset_name ${dataset_abs_path} --data_dest ${tmp_dir_data} --exp_dir ${exp_dir} --mode ${mode}
+
+if [ ! -z "${resume}" ]; then
+  launch_opts=${launch_opts} --resume
+  echo "Resuming from checkpoint(s)."
 fi
+
+if [ ! -z "${folds}" ]; then
+  launch_opts=${launch_opts} --folds ${folds}
+fi
+
+python ${launch_opts}
 
 
 

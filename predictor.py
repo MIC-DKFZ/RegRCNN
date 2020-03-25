@@ -458,10 +458,12 @@ class Predictor:
             assert self.cf.dim == 2, "Merge 2Dto3D only valid for 2D preds, but current dim is {}.".format(self.cf.dim)
 
         if self.mode == 'test':
+            last_state_path = os.path.join(self.cf.fold_dir, 'last_state.pth')
             try:
-                self.epoch_ranking = np.load(os.path.join(self.cf.fold_dir, 'epoch_ranking.npy'))[:cf.test_n_epochs]
-            except:
-                raise RuntimeError('no epoch ranking file in fold directory. '
+                self.model_index = torch.load(last_state_path)["model_index"]
+                self.model_index = self.model_index[self.model_index["rank"] <= self.cf.test_n_epochs]
+            except FileNotFoundError:
+                raise FileNotFoundError('no last_state/model_index file in fold directory. '
                                    'seems like you are trying to run testing without prior training...')
             self.n_ens = cf.test_n_epochs
             if self.cf.test_aug_axes is not None:
@@ -804,8 +806,8 @@ class Predictor:
                  - 'seg_preds': pixel-wise predictions. (b, 1, y, x, (z))
                  - loss / class_loss (only in validation mode)
         """
-        if self.mode=="test":
-            self.logger.info('predicting patient {} for fold {} '.format(np.unique(batch['pid']), self.cf.fold))
+        #if self.mode=="test":
+        #    self.logger.info('predicting patient {} for fold {} '.format(np.unique(batch['pid']), self.cf.fold))
 
         # True if patient is provided in patches and predictions need to be tiled.
         self.patched_patient = 'patch_crop_coords' in list(batch.keys())
@@ -859,8 +861,10 @@ class Predictor:
         # -------------- raw predicting -----------------
         dict_of_patients_results = OrderedDict()
         set_of_result_types = set()
+
+        self.model_index = self.model_index.sort_values(by="rank")
         # get paths of all parameter sets to be loaded for temporal ensembling. (or just one for no temp. ensembling).
-        weight_paths = [os.path.join(self.cf.fold_dir, '{}_best_params.pth'.format(epoch)) for epoch in self.epoch_ranking]
+        weight_paths = [os.path.join(self.cf.fold_dir, file_name) for file_name in self.model_index["file_name"]]
 
 
         for rank_ix, weight_path in enumerate(weight_paths):
@@ -900,8 +904,6 @@ class Predictor:
                                                     has_colorchannels=self.cf.has_colorchannels,
                                                     show_gt_labels=True, show_seg_ids='dice' in self.cf.metrics,
                                                     get_time="test-example plot", out_file=out_file)
-                            self.logger.info("split-off example test plot {} in {:.2f}s".format(
-                                os.path.basename(out_file), self.logger.time("test_plot")))
                         except Exception as e:
                             self.logger.info("WARNING: error in view_batch: {}".format(e))
 

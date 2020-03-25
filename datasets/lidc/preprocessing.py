@@ -22,6 +22,7 @@ as a line in the dataframe saved as info_df.pickle.
 
 import os
 import sys
+import argparse
 import shutil
 import subprocess
 import pickle
@@ -440,10 +441,13 @@ class Preprocessor(object):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-n', '--number', type=int, default=None, help='How many patients to maximally process.')
+    args = parser.parse_args()
     total_stime = time.time()
 
     import configs
-    cf = configs.configs()
+    cf = configs.Configs()
 
     # analysis finding: the following patients have unclear annotations. some raters gave more than one judgement
     # on the same roi.
@@ -456,7 +460,7 @@ if __name__ == "__main__":
     # initialization instead of passing the pre-compiled list.
 
 
-    pp = Preprocessor(cf, overwrite=True, exclude_inconsistents=exclude_paths, max_count=None, pids_subset=None)#["0998a"])
+    pp = Preprocessor(cf, overwrite=True, exclude_inconsistents=exclude_paths, max_count=args.number, pids_subset=None)#["0998a"])
     #pp.analyze_lesion("0305a", "5728")
     #pp.analyze_lesion("0305a", "5741")
     #pp.analyze_lesion("0447a", "8840")

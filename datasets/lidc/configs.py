@@ -78,7 +78,7 @@ class Configs(DefaultConfigs):
         # 'regression': regress some vector per each roi
         # 'regression_ken_gal': use kendall-gal uncertainty sigma
         # 'regression_bin': classify each roi into a bin related to a regression scale
-        self.prediction_tasks = ['class']
+        self.prediction_tasks = ['regression']
 
         self.start_filts = 48 if self.dim == 2 else 18
         self.end_filts = self.start_filts * 4 if self.dim == 2 else self.start_filts * 2

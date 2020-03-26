@@ -450,7 +450,9 @@ class CombinedLogger(object):
             hdlr.close()
         self.pylogger.handlers = []
         del self.pylogger
-        self.tboard.close()
+        self.tboard.flush()
+        # close holds up main script exit. maybe revise this issue with a later pytorch version.
+        #self.tboard.close()
 
 
 def get_logger(exp_dir, server_env=False, sysmetrics_interval=2):

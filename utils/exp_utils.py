@@ -88,6 +88,7 @@ def split_off_process(target, *args, daemon=False, **kwargs):
     p.start()
     return p
 
+
 def query_nvidia_gpu(device_id, d_keyword=None, no_units=False):
     """
     :param device_id:
@@ -230,7 +231,6 @@ class CombinedLogger(object):
             if attr in dir(obj):
                 return getattr(obj, attr)
         print("logger attr not found")
-        #raise AttributeError("CombinedLogger has no attribute {}".format(attr))
 
     def set_logfile(self, fold=None, log_file=None):
         if fold is not None:
@@ -449,7 +449,9 @@ class CombinedLogger(object):
             hdlr.close()
         self.pylogger.handlers = []
         del self.pylogger
-        self.tboard.close()
+        self.tboard.flush()
+        # close holds up main script exit. maybe revise this issue with a later pytorch version.
+        #self.tboard.close()
 
 
 def get_logger(exp_dir, server_env=False, sysmetrics_interval=2):

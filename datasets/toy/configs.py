@@ -482,7 +482,7 @@ class Configs(DefaultConfigs):
         self.pre_nms_limit = (500 if self.dim == 2 else 6250) * self.batch_size
 
         # anchor matching iou is lower than in Mask R-CNN according to https://arxiv.org/abs/1708.02002
-        self.anchor_matching_iou = 0.7
+        self.anchor_matching_iou = 0.5
 
         if self.model == 'retina_unet':
           self.operate_stride1 = True

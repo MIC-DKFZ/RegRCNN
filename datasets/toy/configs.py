@@ -107,7 +107,7 @@ class Configs(DefaultConfigs):
         #########################
 
         # one out of [2, 3]. dimension the model operates in.
-        self.dim = 3
+        self.dim = 2
 
         # 'class', 'regression', 'regression_bin', 'regression_ken_gal'
         # currently only tested mode is a single-task at a time (i.e., only one task in below list)
@@ -130,7 +130,7 @@ class Configs(DefaultConfigs):
         #########################
 
         self.num_epochs = 32
-        self.num_train_batches = 120 if self.dim == 2 else 80
+        self.num_train_batches = 120 if self.dim == 2 else 180
         self.batch_size = 8 if self.dim == 2 else 4
 
         self.n_cv_splits = 4
@@ -160,7 +160,7 @@ class Configs(DefaultConfigs):
         #############################
         # Colors, Classes, Legends  #
         #############################
-        self.plot_frequency = 1
+        self.plot_frequency = 4
 
         binary_bin_labels = [binLabel(1,  'r<=25',      (*self.green, 1.),      (1,25)),
                              binLabel(2,  'r>25',       (*self.red, 1.),        (25,))]

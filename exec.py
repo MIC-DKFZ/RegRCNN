@@ -172,11 +172,11 @@ def train(cf, logger):
             logger.info("time for evals: {:.2f}s".format(logger.get_time("evals", reset=True)))
 
         #-------------- scheduling -----------------
-        if not cf.dynamic_lr_scheduling:
+        if cf.dynamic_lr_scheduling:
+            scheduler.step(monitor_metrics["val"][cf.scheduling_criterion][-1])
+        else:
             for param_group in optimizer.param_groups:
                 param_group['lr'] = cf.learning_rate[epoch-1]
-        else:
-            scheduler.step(monitor_metrics["val"][cf.scheduling_criterion][-1])
 
     logger.time("train_val")
     logger.info("Training and validating over {} epochs took {}".format(cf.num_epochs, logger.get_time("train_val", format="hms", reset=True)))
@@ -260,7 +260,6 @@ if __name__ == '__main__':
             cf.fold_dir = os.path.join(cf.exp_dir, 'fold_{}'.format(fold)); cf.fold = fold
             logger.set_logfile(fold=fold)
             cf.resume = resume
-
             if not os.path.exists(cf.fold_dir):
                 os.mkdir(cf.fold_dir)
             train(cf, logger)

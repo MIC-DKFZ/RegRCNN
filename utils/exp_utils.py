@@ -445,7 +445,7 @@ class CombinedLogger(object):
         return
 
     def __del__(self):  # otherwise might produce multiple prints e.g. in ipython console
-        self.sys_metrics_process.terminate()
+        #self.sys_metrics_process.terminate()
         for hdlr in self.pylogger.handlers:
             hdlr.close()
         self.pylogger.handlers = []

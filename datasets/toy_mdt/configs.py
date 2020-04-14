@@ -40,7 +40,7 @@ class Configs(DefaultConfigs):
         self.dim = 2
         DefaultConfigs.__init__(self, server_env, self.dim)
         # one out of ['mrcnn', 'retina_net', 'retina_unet', 'detection_unet', 'ufrcnn'].
-        self.model = 'retina_net'
+        self.model = 'detection_fpn'
         self.model_path = 'models/{}.py'.format(self.model if not 'retina' in self.model else 'retina_net')
         self.model_path = os.path.join(self.source_dir, self.model_path)
         # int [0 < dataset_size]. select n patients from dataset for prototyping.
@@ -64,7 +64,7 @@ class Configs(DefaultConfigs):
             # path to preprocessed data.
             pp_root_dir = '/datasets/datasets_ramien/toy_exp/data'
             self.pp_name = os.path.join(toy_mode, 'train')
-            self.pp_data_path = os.path.join(pp_root_dir, self.pp_name)
+            self.data_sourcedir = os.path.join(pp_root_dir, self.pp_name)
             self.pp_test_name = os.path.join(toy_mode, 'test')
             self.test_data_sourcedir = os.path.join(pp_root_dir, self.pp_test_name)
             self.select_prototype_subset = None
@@ -112,12 +112,14 @@ class Configs(DefaultConfigs):
 
         # compatibility
         self.regression_n_features = 1
+        self.num_classes = 2 # excluding bg
+        self.num_seg_classes = 3 # incl bg
 
         #########################
         #  Schedule / Selection #
         #########################
 
-        self.num_epochs = 23
+        self.num_epochs = 32
         self.num_train_batches = 100 if self.dim == 2 else 200
         self.batch_size = 20 if self.dim == 2 else 8
 
@@ -133,7 +135,7 @@ class Configs(DefaultConfigs):
         # set dynamic_lr_scheduling to True to apply LR scheduling with below settings.
         self.dynamic_lr_scheduling = True
         self.lr_decay_factor = 0.5
-        self.scheduling_patience = np.ceil(3600 / (self.num_train_batches * self.batch_size))
+        self.scheduling_patience = np.ceil(2400 / (self.num_train_batches * self.batch_size))
         self.scheduling_criterion = 'donuts_ap'
         self.scheduling_mode = 'min' if "loss" in self.scheduling_criterion else 'max'
         self.weight_decay = 0
@@ -211,35 +213,35 @@ class Configs(DefaultConfigs):
         #   Add model specifics #
         #########################
 
-        {'detection_unet': self.add_det_unet_configs,
+        {'detection_fpn': self.add_det_fpn_configs,
          'mrcnn': self.add_mrcnn_configs,
          'retina_net': self.add_mrcnn_configs,
          'retina_unet': self.add_mrcnn_configs,
         }[self.model]()
 
 
-    def add_det_unet_configs(self):
+    def add_det_fpn_configs(self):
 
-        self.learning_rate = [1e-4] * self.num_epochs
+      self.learning_rate = [1 * 1e-3] * self.num_epochs
+      self.dynamic_lr_scheduling = True
+      self.scheduling_criterion = 'torch_loss'
+      self.scheduling_mode = 'min' if "loss" in self.scheduling_criterion else 'max'
 
-        # aggregation from pixel perdiction to object scores (connected component). One of ['max', 'median']
-        self.aggregation_operation = 'max'
+      self.n_roi_candidates = 4 if self.dim == 2 else 6
+      # max number of roi candidates to identify per image (slice in 2D, volume in 3D)
 
-        # max number of roi candidates to identify per image (slice in 2D, volume in 3D)
-        self.n_roi_candidates = 3 if self.dim == 2 else 8
+      # loss mode: either weighted cross entropy ('wce'), batch-wise dice loss ('dice), or the sum of both ('dice_wce')
+      self.seg_loss_mode = 'wce'
+      self.wce_weights = [1] * self.num_seg_classes if 'dice' in self.seg_loss_mode else [0.1, 1., 1.]
 
-        # loss mode: either weighted cross entropy ('wce'), batch-wise dice loss ('dice), or the sum of both ('dice_wce')
-        self.seg_loss_mode = 'wce'
+      self.fp_dice_weight = 1 if self.dim == 2 else 1
+      # if <1, false positive predictions in foreground are penalized less.
 
-        # if <1, false positive predictions in foreground are penalized less.
-        self.fp_dice_weight = 1 if self.dim == 2 else 1
+      self.detection_min_confidence = 0.05
+      # how to determine score of roi: 'max' or 'median'
+      self.score_det = 'max'
 
-        self.wce_weights = [1, 1, 1]
-        self.detection_min_confidence = self.min_det_thresh
 
-        # if 'True', loss distinguishes all classes, else only foreground vs. background (class agnostic).
-        self.num_seg_classes = 3
-        self.head_classes = self.num_seg_classes
 
     def add_mrcnn_configs(self):
 
@@ -259,10 +261,7 @@ class Configs(DefaultConfigs):
         self.n_plot_rpn_props = 0 if self.dim == 2 else 0
 
         # number of classes for head networks: n_foreground_classes + 1 (background)
-        self.head_classes = 3
-
-        # seg_classes hier refers to the first stage classifier (RPN)
-        self.num_seg_classes = 2  # foreground vs. background
+        self.head_classes = self.num_classes + 1
 
         # feature map strides per pyramid level are inferred from architecture.
         self.backbone_strides = {'xy': [4, 8, 16, 32], 'z': [1, 2, 4, 8]}
@@ -335,12 +334,8 @@ class Configs(DefaultConfigs):
                   int(np.ceil(self.patch_size[2] / stride_z))]
                  for stride, stride_z in zip(self.backbone_strides['xy'], self.backbone_strides['z']
                                              )])
-        if self.model == 'ufrcnn':
-            self.operate_stride1 = True
-            self.num_seg_classes = 3
-            self.frcnn_mode = True
 
-        if self.model == 'retina_net' or self.model == 'retina_unet' or self.model == 'prob_detector':
+        if self.model == 'retina_net' or self.model == 'retina_unet':
             # implement extra anchor-scales according to retina-net publication.
             self.rpn_anchor_scales['xy'] = [[ii[0], ii[0] * (2 ** (1 / 3)), ii[0] * (2 ** (2 / 3))] for ii in
                                             self.rpn_anchor_scales['xy']]
@@ -355,9 +350,6 @@ class Configs(DefaultConfigs):
 
             # anchor matching iou is lower than in Mask R-CNN according to https://arxiv.org/abs/1708.02002
             self.anchor_matching_iou = 0.5
-
-            # if 'True', seg loss distinguishes all classes, else only foreground vs. background (class agnostic).
-            self.num_seg_classes = 3
 
             if self.model == 'retina_unet':
                 self.operate_stride1 = True

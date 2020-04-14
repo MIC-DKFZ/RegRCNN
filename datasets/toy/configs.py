@@ -415,7 +415,7 @@ class Configs(DefaultConfigs):
       self.rpn_nms_threshold = max(0.8, self.model_max_iou_resolution)
 
       # loss sampling settings.
-      self.rpn_train_anchors_per_image = 4
+      self.rpn_train_anchors_per_image = 64
       self.train_rois_per_image = 6 # per batch_instance
       self.roi_positive_ratio = 0.5
       self.anchor_matching_iou = 0.8

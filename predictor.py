@@ -892,8 +892,9 @@ class Predictor:
                     results_dict = self.predict_patient(batch) #only holds "boxes", "seg_preds"
                     # needs ohe seg probs in seg_preds entry:
                     results_dict['seg_preds'] = np.argmax(results_dict['seg_preds'], axis=1)[:,np.newaxis]
-                    self.logger.info("predicting patient {} with weight rank {} (progress: {}/{}) took {:.2f}s".format(
-                        str(pid), rank_ix, (rank_ix)*batch_gen['n_test']+(i+1), len(weight_paths)*batch_gen['n_test'], time.time()-stime))
+                    print("\rpredicting patient {} with weight rank {} (progress: {}/{}) took {:.2f}s".format(
+                        str(pid), rank_ix, (rank_ix)*batch_gen['n_test']+(i+1), len(weight_paths)*batch_gen['n_test'],
+                        time.time()-stime), end="", flush=True)
 
                     if i in plot_batches and (not self.patched_patient or 'patient_data' in batch.keys()):
                         try:

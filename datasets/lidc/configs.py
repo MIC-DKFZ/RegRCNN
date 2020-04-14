@@ -49,19 +49,19 @@ class Configs(DefaultConfigs):
         #########################
 
         # path to preprocessed data.
-        #self.pp_name = 'pp_20190318'
-        self.pp_name = 'pp_20200309_dev'
+        self.pp_name = 'pp_20190805'
 
         self.input_df_name = 'info_df.pickle'
         self.data_sourcedir = '/media/gregor/HDD2TB/data/lidc/{}/'.format(self.pp_name)
+        #self.data_sourcedir = '/home/gregor/networkdrives/E132-Cluster-Projects/lidc/data/{}/'.format(self.pp_name)
 
         # settings for deployment on cluster.
         if server_env:
             # path to preprocessed data.
-            self.data_sourcedir = '/datasets/data_ramien/lidc/{}_npz/'.format(self.pp_name)
+            self.data_sourcedir = '/datasets/datasets_ramien/lidc/data/{}_npz/'.format(self.pp_name)
 
         # one out of ['mrcnn', 'retina_net', 'retina_unet', 'detection_fpn'].
-        self.model = 'mrcnn'
+        self.model = 'retina_net'
         self.model_path = 'models/{}.py'.format(self.model if not 'retina' in self.model else 'retina_net')
         self.model_path = os.path.join(self.source_dir, self.model_path)
 
@@ -78,7 +78,7 @@ class Configs(DefaultConfigs):
         # 'regression': regress some vector per each roi
         # 'regression_ken_gal': use kendall-gal uncertainty sigma
         # 'regression_bin': classify each roi into a bin related to a regression scale
-        self.prediction_tasks = ['regression']
+        self.prediction_tasks = ['class']
 
         self.start_filts = 48 if self.dim == 2 else 18
         self.end_filts = self.start_filts * 4 if self.dim == 2 else self.start_filts * 2

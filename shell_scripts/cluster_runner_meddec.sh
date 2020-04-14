@@ -45,17 +45,18 @@ export CUDA_CACHE_PATH
 
 export OMP_NUM_THREADS=1 # this is a work-around fix for batchgenerators to deal with numpy-inherent multi-threading.
 
-launch_opts=${source_dir}/exec.py --use_stored_settings --server_env --dataset_name ${dataset_abs_path} --data_dest ${tmp_dir_data} --exp_dir ${exp_dir} --mode ${mode}
+launch_opts="${source_dir}/exec.py --use_stored_settings --server_env --exp_source ${dataset_abs_path} --data_dest ${tmp_dir_data} --exp_dir ${exp_dir} --mode ${mode}"
 
 if [ ! -z "${resume}" ]; then
-  launch_opts=${launch_opts} --resume
+  launch_opts="${launch_opts} --resume"
   echo "Resuming from checkpoint(s)."
 fi
 
 if [ ! -z "${folds}" ]; then
-  launch_opts=${launch_opts} --folds ${folds}
+  launch_opts="${launch_opts} --folds ${folds}"
 fi
 
+echo "submitting with ${launch_opts}"
 python ${launch_opts}
 
 

@@ -2,8 +2,8 @@
 #wrapper for cluster_runner_....sh which copies job-specific, frequently changing files (e.g. configs.py) before the actual sbatch job 
 #is submitted since the job might pend in queue before execution --> hazard of job-specific files being unintentionally changed during queue wait time. 
 #positonal
-# -arg #1 identifies the folder name of the dataset-related code (e.g. >prostate< or >cityscapes<) within the code source directory
-# -arg #2 is the experiment and first part of slurm job name,
+# -arg #1 identifies the folder name of the dataset-related code (e.g. >toy_exp< or >lidc_exp<) within the code source directory
+# -arg #2 is the experiment and first part of the job name,
 # optional args and flags:
 # -c / --create: (flag) whether to create the exp, i.e., if this is a new start of the exp with configs etc from source dir.
 # -f / --folds FOLDS: (option) fold(s) to run on (FOLDS needs to be only one int or string of multiple ints separated by space), default None (-->set to all in config)
@@ -52,6 +52,10 @@ while [ ${#} -gt 2 ]; do
 			which="${4}"
 			shift; shift			
 			;;
+		-R|--resource)
+			resource="${4}"
+			shift; shift			
+			;;
 		--gmem)
 			gmem="${4}"
 			shift; shift
@@ -93,21 +97,27 @@ fi
 root_dir=/home/ramien #assumes /home/ramien exists
 prep_node=ramien@e132-comp07 #node used for prep tasks like create_exp
 #medicaldetectiontoolkit
-source_dir=${root_dir}/medicaldetectiontoolkit
+source_dir=${root_dir}/regrcnn
 
-dataset_abs_path=${source_dir}/datasets/${dataset_name} #set as second argument passed to this script
-exp_parent_dir=/datasets/data_ramien/${dataset_name}/${exp_parent_dir}
+dataset_abs_path=${source_dir}/experiments/${dataset_name} #set as second argument passed to this script
+exp_parent_dir=/datasets/datasets_ramien/${dataset_name}/${exp_parent_dir}
 #exp_parent_dir=/home/gregor/Documents/medicaldetectiontoolkit/datasets/${dataset_name}/experiments #for testing this script
 # /dataset is not mounted on log-in/job submission nodes (would maybe make sense, I feel), only on queue gputest's nodes e132-compXX.
-ssh ${prep_node} "mkdir -p ${exp_parent_dir}"
+#ssh ${prep_node} "mkdir -p ${exp_parent_dir}"
 exp_dir=${exp_parent_dir}/${exp_name}
 
 #activate virtualenv that has all the packages:
-source_dl="module load python/3.6.1; source ${root_dir}/.virtualenvs/deeplearning36/bin/activate"
+source_dl="module load python/3.7.0; module load gcc/7.2.0; source ${root_dir}/.virtualenvs/mdt/bin/activate;"
 
 # TODO as long as no fix available: this script needs to be started directly from the prep node. :/ would be nice if (most importantly
-# 'module ...' would also work over ssh, but somehow some commands are not availabe over the ssh-induced shell (even when using it as interactive).
+# 'module ...') would also work over ssh, but somehow some commands are not availabe over the ssh-induced shell (even when using it as interactive).
 eval ${source_dl}
+
+# ssh: (not working)
+#create_cmd="ssh ${prep_node} '${source_dl} python ${source_dir}/exec.py --server_env --mode create_exp --exp_dir ${exp_dir} --exp_source ${dataset_abs_path};'"
+# directly from prep node:
+create_cmd="python ${source_dir}/exec.py --server_env --mode create_exp --exp_dir ${exp_dir} --exp_source ${dataset_abs_path};"
+
 
 #if create_exp, check if would overwrite existing exp_dir
 if [ ! -z ${create_exp} ] && [ ${create_exp} = "c" ]; then #-n doesnt work as replacement for !-z
@@ -120,17 +130,16 @@ if [ ! -z ${create_exp} ] && [ ${create_exp} = "c" ]; then #-n doesnt work as re
 				exit
 		fi
 	fi
-	#echo "opts: name ${exp_name}, ${source_dir}/exec.py --server_env --mode create_exp --exp_dir ${exp_dir} --dataset_name ${dataset_abs_path}"
+	#echo "opts: name ${exp_name}, ${source_dir}/exec.py --server_env --mode create_exp --exp_dir ${exp_dir} --exp_source ${dataset_abs_path}"
 	echo "Creating ${exp_name}"
-	#ssh ${prep_node} "${source_dl}; python ${source_dir}/exec.py --server_env --mode create_exp --exp_dir ${exp_dir} --dataset_name ${dataset_abs_path};"
-	python ${source_dir}/exec.py --server_env --mode create_exp --exp_dir ${exp_dir} --dataset_name ${dataset_abs_path}
+	eval ${create_cmd}
 else
 	if [ ! -d ${exp_dir} ]; then
 		echo "Experiment directory ${exp_dir} does not exist."
 		echo "Run create_exp? (Y/n): "; read confirmation
 			if ([ "${confirmation}" = "y" ] || [ "${confirmation}" = "yes" ] || [ "${confirmation}" = "Y" ] || [ -z "${confirmation}" ]); then
 				echo "Creating ${exp_name}"
-				python ${source_dir}/exec.py --server_env --mode create_exp --exp_dir ${exp_dir} --dataset_name ${dataset_abs_path}
+				eval ${create_cmd}
 			fi
 	fi
 fi
@@ -150,28 +159,33 @@ if [ -z ${create_exp} ] && ([ ${mode} = "train" ] || [ ${mode} = "train_test" ])
 	done
 fi
 
+
+
+bsub_opts="bsub -N -q ${queue} -gpu num=1:j_exclusive=yes:mode=exclusive_process:gmem=${gmem}G"
+if [ ! -z "$resource" ]; then
+	bsub_opts=$bsub_opts $resource
+fi
+if [ ! -z ${which} ]; then
+	bsub_opts="${bsub_opts} -m ${which}"
+fi
+
+#----- parallel/separate fold jobs (each fold in a single job) -----------
 if [ ! -z "${folds}" ] && [ -z ${no_parallel} ]; then #WHY do i need to convert to string again?
 	for f in ${folds}; do
 		out_file=${exp_dir}/logs/fold_${f}_lsf_output.out
-		bsub_opts="bsub -N -q '${queue}' -J '${dataset_name} ${exp_name}  fold ${f} ${mode}' -gpu num=1:j_exclusive=yes:mode=exclusive_process:gmem=${gmem}G -oo ${out_file}"
-		if [ ! -z ${which} ]; then
-			bsub_opts="${bsub_opts} -m ${which}"
-		fi
-		#echo ${bsub_opts} #${exp_name}"  fold ""${f}""  ""${mode}" #--gres=${gres} --time=${time} -w ${which}
-		eval  "${bsub_opts} 'sh cluster_runner_meddec.sh' ${source_dir} ${exp_dir} ${dataset_abs_path} ${mode} ${f} ${resume}"
+		bsub_opts="$bsub_opts -J '${dataset_name} ${exp_name}  fold ${f} ${mode}' -oo '${out_file}'"
+		eval "${bsub_opts} sh cluster_runner_meddec.sh ${source_dir} ${exp_dir} ${dataset_abs_path} ${mode} ${f} ${resume}"
 	done
-else
-	#echo ${exp_name}"  fold ""${f}""  ""${mode}"
+
+#----- consecutive folds job (all folds in one single job) -----------
+else 
 	if [ ! -z ${resume} ]; then
 		echo "You need to explicitly specify folds if you would like to resume from a checkpoint. Exiting."
 		exit
 	fi
 	out_file=${exp_dir}/lsf_output.out
-	bsub_opts="bsub -N -q '${queue}' -J '${dataset_name} ${exp_name}  folds ${folds} ${mode}' -gpu num=1:j_exclusive=yes:mode=exclusive_process:gmem=${gmem}G -oo '${out_file}'"
-	if [ ! -z ${which} ]; then
-		bsub_opts="${bsub_opts} -m ${which}"
-	fi
-	eval  "${bsub_opts} 'sh cluster_runner_meddec.sh' ${source_dir} ${exp_dir} ${dataset_abs_path} ${mode} ${folds} ${resume}"
+	bsub_opts="$bsub_opts -J '${dataset_name} ${exp_name}  folds ${folds} ${mode}' -oo '${out_file}'"
+	eval "${bsub_opts} sh cluster_runner_meddec.sh ${source_dir} ${exp_dir} ${dataset_abs_path} ${mode} ${folds} ${resume}"
 	echo "Started in no parallel, folds:" ${folds}
 fi
 

@@ -262,7 +262,7 @@ class Configs(DefaultConfigs):
             self.model_selection_criteria.update({name + "_avp": 0.8 for name in self.class_dict.values()})
 
         self.lr_decay_factor = 0.5
-        self.scheduling_patience = int(self.num_epochs / 5)
+        self.scheduling_patience = np.ceil(1800 / (self.num_train_batches * self.batch_size))
         self.weight_decay = 1e-5
         self.clip_norm = None  # number or None
 

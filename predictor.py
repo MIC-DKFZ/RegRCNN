@@ -873,7 +873,8 @@ class Predictor:
             self.net.eval()
             self.rank_ix = str(rank_ix)
             with torch.no_grad():
-                plot_batches = np.random.choice(np.arange(batch_gen['n_test']), size=self.cf.n_test_plots, replace=False)
+                plot_batches = np.random.choice(np.arange(batch_gen['n_test']),
+                                                size=min(batch_gen['n_test'], self.cf.n_test_plots), replace=False)
                 for i in range(batch_gen['n_test']):
                     batch = next(batch_gen['test'])
                     pid = np.unique(batch['pid'])

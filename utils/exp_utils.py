@@ -231,6 +231,7 @@ class CombinedLogger(object):
             if attr in dir(obj):
                 return getattr(obj, attr)
         print("logger attr not found")
+        #raise AttributeError("CombinedLogger has no attribute {}".format(attr))
 
     def set_logfile(self, fold=None, log_file=None):
         if fold is not None:
@@ -444,7 +445,7 @@ class CombinedLogger(object):
         return
 
     def __del__(self):  # otherwise might produce multiple prints e.g. in ipython console
-        self.sys_metrics_process.terminate()
+        #self.sys_metrics_process.terminate()
         for hdlr in self.pylogger.handlers:
             hdlr.close()
         self.pylogger.handlers = []

@@ -537,13 +537,9 @@ class Evaluator():
             self.test_df['rg_targets'] = df_list_rg_targets
             self.test_df['rg_uncertainties'] = df_list_rg_uncs
             self.test_df['rg_bins'] = df_list_rg_bins
-            # super weird error: pandas does not properly add an attribute if column is named "rg_bin_targets" ... ?!?
             self.test_df['rg_bin_target'] = df_list_rg_bin_targets
             assert hasattr(self.test_df, "rg_bin_target")
 
-        #fn_df = self.test_df[self.test_df["det_type"] == "det_fn"]
-
-        pass
 
     def evaluate_predictions(self, results_list, monitor_metrics=None):
         """

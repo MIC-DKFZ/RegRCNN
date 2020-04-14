@@ -277,7 +277,7 @@ class CompareFoldSplits(unittest.TestCase):
 #------- check if cross-validation fold splits of a single experiment are actually incongruent (as required) ----------
 class VerifyFoldSplits(unittest.TestCase):
     """ Check, for a single fold_ids file, i.e., for a single experiment, if the assigned folds (assignment of data
-        identifiers) is actually incongruent. No overlaps between folds are required for a correct cross validation.
+        identifiers) is actually incongruent. No overlaps between folds are allowed for a correct cross validation.
     """
     @staticmethod
     def verify_fold_ids(splits):

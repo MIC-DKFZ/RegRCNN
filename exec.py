@@ -50,13 +50,15 @@ def train(cf, logger):
 
     # -------------- inits and settings -----------------
     net = model.net(cf, logger).cuda()
-    if cf.optimizer == "ADAM":
-        optimizer = torch.optim.Adam(net.parameters(), lr=cf.learning_rate[0], weight_decay=cf.weight_decay)
+    if cf.optimizer == "ADAMW":
+        optimizer = torch.optim.AdamW(utils.parse_params_for_optim(net, weight_decay=cf.weight_decay),
+                                      lr=cf.learning_rate[0])
     elif cf.optimizer == "SGD":
-        optimizer = torch.optim.SGD(net.parameters(), lr=cf.learning_rate[0], weight_decay=cf.weight_decay, momentum=0.3)
+        optimizer = torch.optim.SGD(utils.parse_params_for_optim(net, weight_decay=cf.weight_decay),
+                                    lr=cf.learning_rate[0], momentum=0.3)
     if cf.dynamic_lr_scheduling:
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode=cf.scheduling_mode, factor=cf.lr_decay_factor,
-                                                                    patience=cf.scheduling_patience)
+                                                               patience=cf.scheduling_patience)
     model_selector = utils.ModelSelector(cf, logger)
 
     starting_epoch = 1

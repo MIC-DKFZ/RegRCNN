@@ -13,8 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-# import plotting as plg
-
+from typing import Union, Iterable
 import sys
 import os
 import subprocess
@@ -117,6 +116,68 @@ def query_nvidia_gpu(device_id, d_keyword=None, no_units=False):
 
     return out_dict
 
+class _AnsiColorizer(object):
+    """
+    A colorizer is an object that loosely wraps around a stream, allowing
+    callers to write text to the stream in a particular color.
+
+    Colorizer classes must implement C{supported()} and C{write(text, color)}.
+    """
+    _colors = dict(black=30, red=31, green=32, yellow=33,
+                   blue=34, magenta=35, cyan=36, white=37, default=39)
+
+    def __init__(self, stream):
+        self.stream = stream
+
+    @classmethod
+    def supported(cls, stream=sys.stdout):
+        """
+        A class method that returns True if the current platform supports
+        coloring terminal output using this method. Returns False otherwise.
+        """
+        if not stream.isatty():
+            return False  # auto color only on TTYs
+        try:
+            import curses
+        except ImportError:
+            return False
+        else:
+            try:
+                try:
+                    return curses.tigetnum("colors") > 2
+                except curses.error:
+                    curses.setupterm()
+                    return curses.tigetnum("colors") > 2
+            except:
+                raise
+                # guess false in case of error
+                return False
+
+    def write(self, text, color):
+        """
+        Write the given text to the stream in the given color.
+
+        @param text: Text to be written to the stream.
+
+        @param color: A string label for a color. e.g. 'red', 'white'.
+        """
+        color = self._colors[color]
+        self.stream.write('\x1b[%sm%s\x1b[0m' % (color, text))
+
+class ColorHandler(logging.StreamHandler):
+
+    def __init__(self, stream=sys.stdout):
+        super(ColorHandler, self).__init__(_AnsiColorizer(stream))
+
+    def emit(self, record):
+        msg_colors = {
+            logging.DEBUG: "green",
+            logging.INFO: "default",
+            logging.WARNING: "red",
+            logging.ERROR: "red"
+        }
+        color = msg_colors.get(record.levelno, "blue")
+        self.stream.write(record.msg + "\n", color)
 
 class CombinedPrinter(object):
     """combined print function.
@@ -138,7 +199,6 @@ class CombinedPrinter(object):
     def __call__(self, string):
         for fct in self.out:
             fct(string)
-
 
 class Nvidia_GPU_Logger(object):
     def __init__(self):
@@ -454,7 +514,6 @@ class CombinedLogger(object):
         # close holds up main script exit. maybe revise this issue with a later pytorch version.
         #self.tboard.close()
 
-
 def get_logger(exp_dir, server_env=False, sysmetrics_interval=2):
     log_dir = os.path.join(exp_dir, "logs")
     logger = CombinedLogger('Reg R-CNN', log_dir, server_env=server_env,
@@ -462,68 +521,29 @@ def get_logger(exp_dir, server_env=False, sysmetrics_interval=2):
     print("logging to {}".format(logger.log_file))
     return logger
 
-
-def prep_exp(dataset_path, exp_path, server_env, use_stored_settings=True, is_training=True):
+def prepare_monitoring(cf):
     """
-    I/O handling, creating of experiment folder structure. Also creates a snapshot of configs/model scripts and copies them to the exp_dir.
-    This way the exp_dir contains all info needed to conduct an experiment, independent to changes in actual source code. Thus, training/inference of this experiment can be started at anytime.
-    Therefore, the model script is copied back to the source code dir as tmp_model (tmp_backbone).
-    Provides robust structure for cloud deployment.
-    :param dataset_path: path to source code for specific data set. (e.g. medicaldetectiontoolkit/lidc_exp)
-    :param exp_path: path to experiment directory.
-    :param server_env: boolean flag. pass to configs script for cloud deployment.
-    :param use_stored_settings: boolean flag. When starting training: If True, starts training from snapshot in existing
-        experiment directory, else creates experiment directory on the fly using configs/model scripts from source code.
-    :param is_training: boolean flag. distinguishes train vs. inference mode.
-    :return: configs object.
+    creates dictionaries, where train/val metrics are stored.
     """
+    metrics = {}
+    # first entry for loss dict accounts for epoch starting at 1.
+    metrics['train'] = OrderedDict()  # [(l_name, [np.nan]) for l_name in cf.losses_to_monitor] )
+    metrics['val'] = OrderedDict()  # [(l_name, [np.nan]) for l_name in cf.losses_to_monitor] )
+    metric_classes = []
+    if 'rois' in cf.report_score_level:
+        metric_classes.extend([v for k, v in cf.class_dict.items()])
+        if hasattr(cf, "eval_bins_separately") and cf.eval_bins_separately:
+            metric_classes.extend([v for k, v in cf.bin_dict.items()])
+    if 'patient' in cf.report_score_level:
+        metric_classes.extend(['patient_' + cf.class_dict[cf.patient_class_of_interest]])
+        if hasattr(cf, "eval_bins_separately") and cf.eval_bins_separately:
+            metric_classes.extend(['patient_' + cf.bin_dict[cf.patient_bin_of_interest]])
+    for cl in metric_classes:
+        for m in cf.metrics:
+            metrics['train'][cl + '_' + m] = [np.nan]
+            metrics['val'][cl + '_' + m] = [np.nan]
 
-    if is_training:
-
-        if use_stored_settings:
-            cf_file = import_module('cf', os.path.join(exp_path, 'configs.py'))
-            cf = cf_file.Configs(server_env)
-            # in this mode, previously saved model and backbone need to be found in exp dir.
-            if not os.path.isfile(os.path.join(exp_path, 'model.py')) or \
-                    not os.path.isfile(os.path.join(exp_path, 'backbone.py')):
-                raise Exception(
-                    "Selected use_stored_settings option but no model and/or backbone source files exist in exp dir.")
-            cf.model_path = os.path.join(exp_path, 'model.py')
-            cf.backbone_path = os.path.join(exp_path, 'backbone.py')
-        else:  # this case overwrites settings files in exp dir, i.e., default_configs, configs, backbone, model
-            os.makedirs(exp_path, exist_ok=True)
-            # run training with source code info and copy snapshot of model to exp_dir for later testing (overwrite scripts if exp_dir already exists.)
-            subprocess.call('cp {} {}'.format('default_configs.py', os.path.join(exp_path, 'default_configs.py')),
-                            shell=True)
-            subprocess.call(
-                'cp {} {}'.format(os.path.join(dataset_path, 'configs.py'), os.path.join(exp_path, 'configs.py')),
-                shell=True)
-            cf_file = import_module('cf_file', os.path.join(dataset_path, 'configs.py'))
-            cf = cf_file.Configs(server_env)
-            subprocess.call('cp {} {}'.format(cf.model_path, os.path.join(exp_path, 'model.py')), shell=True)
-            subprocess.call('cp {} {}'.format(cf.backbone_path, os.path.join(exp_path, 'backbone.py')), shell=True)
-            if os.path.isfile(os.path.join(exp_path, "fold_ids.pickle")):
-                subprocess.call('rm {}'.format(os.path.join(exp_path, "fold_ids.pickle")), shell=True)
-
-    else:  # testing, use model and backbone stored in exp dir.
-        cf_file = import_module('cf', os.path.join(exp_path, 'configs.py'))
-        cf = cf_file.Configs(server_env)
-        cf.model_path = os.path.join(exp_path, 'model.py')
-        cf.backbone_path = os.path.join(exp_path, 'backbone.py')
-
-    cf.exp_dir = exp_path
-    cf.test_dir = os.path.join(cf.exp_dir, 'test')
-    cf.plot_dir = os.path.join(cf.exp_dir, 'plots')
-    if not os.path.exists(cf.test_dir):
-        os.mkdir(cf.test_dir)
-    if not os.path.exists(cf.plot_dir):
-        os.mkdir(cf.plot_dir)
-    cf.experiment_name = exp_path.split("/")[-1]
-    cf.dataset_name = dataset_path
-    cf.server_env = server_env
-    cf.created_fold_id_pickle = False
-
-    return cf
+    return metrics
 
 
 class ModelSelector:
@@ -596,6 +616,46 @@ class ModelSelector:
         else:
             torch.save(state, os.path.join(self.cf.fold_dir, 'last_state.pth'))
 
+def parse_params_for_optim(net: torch.nn.Module, weight_decay: float = 0., exclude_from_wd: Iterable = ("norm", "bias")):
+    """Format network parameters for the optimizer.
+    Convenience function to include options for group-specific settings like weight decay.
+    :param net:
+    :param weight_decay:
+    :param exclude_from_wd: List of strings of parameter-group names to exclude from weight decay. Options: "norm", "bias".
+    :return:
+    """
+    # pytorch implements parameter groups as dicts {'params': ...} and
+    # weight decay as p.data.mul_(1 - group['lr'] * group['weight_decay'])
+    norm_types = [torch.nn.BatchNorm1d, torch.nn.BatchNorm2d, torch.nn.BatchNorm3d,
+                  torch.nn.InstanceNorm1d, torch.nn.InstanceNorm2d, torch.nn.InstanceNorm3d,
+                  torch.nn.LayerNorm, torch.nn.GroupNorm, torch.nn.SyncBatchNorm, torch.nn.LocalResponseNorm
+                  ]
+    level_map = {"bias": "weight",
+                 "norm": "module"}
+    type_map = {"norm": norm_types}
+
+    exclude_from_wd = [str(name).lower() for name in exclude_from_wd]
+    exclude_weight_names = [k for k, v in level_map.items() if k in exclude_from_wd and v == "weight"]
+    exclude_module_types = tuple([type_ for k, v in level_map.items() if (k in exclude_from_wd and v == "module")
+                                  for type_ in type_map[k]])
+
+    print("excluding {} from weight decay.".format(exclude_from_wd))
+
+    with_dec, no_dec = [], []
+    for name, module in net.named_modules():
+        if isinstance(module, exclude_module_types):
+            no_dec.extend(module.parameters())
+        else:
+            for param_name, param in module.named_parameters():
+                if np.any([ename in param_name for ename in exclude_weight_names]):
+                    no_dec.append(param)
+                else:
+                    with_dec.append(param)
+
+    groups = [{'params': gr, 'weight_decay': wd} for gr, wd in [(no_dec, 0.), (with_dec, weight_decay)] if len(gr) > 0]
+
+    return groups
+
 def load_checkpoint(checkpoint_path, net, optimizer, model_selector):
     checkpoint = torch.load(checkpoint_path)
     net.load_state_dict(checkpoint['state_dict'])
@@ -603,92 +663,64 @@ def load_checkpoint(checkpoint_path, net, optimizer, model_selector):
     model_selector.model_index = checkpoint["model_index"]
     return checkpoint['epoch'] + 1, net, optimizer, model_selector
 
-
-def prepare_monitoring(cf):
+def prep_exp(dataset_path, exp_path, server_env, use_stored_settings=True, is_training=True):
     """
-    creates dictionaries, where train/val metrics are stored.
+    I/O handling, creating of experiment folder structure. Also creates a snapshot of configs/model scripts and copies them to the exp_dir.
+    This way the exp_dir contains all info needed to conduct an experiment, independent to changes in actual source code. Thus, training/inference of this experiment can be started at anytime.
+    Therefore, the model script is copied back to the source code dir as tmp_model (tmp_backbone).
+    Provides robust structure for cloud deployment.
+    :param dataset_path: path to source code for specific data set. (e.g. medicaldetectiontoolkit/lidc_exp)
+    :param exp_path: path to experiment directory.
+    :param server_env: boolean flag. pass to configs script for cloud deployment.
+    :param use_stored_settings: boolean flag. When starting training: If True, starts training from snapshot in existing
+        experiment directory, else creates experiment directory on the fly using configs/model scripts from source code.
+    :param is_training: boolean flag. distinguishes train vs. inference mode.
+    :return: configs object.
     """
-    metrics = {}
-    # first entry for loss dict accounts for epoch starting at 1.
-    metrics['train'] = OrderedDict()  # [(l_name, [np.nan]) for l_name in cf.losses_to_monitor] )
-    metrics['val'] = OrderedDict()  # [(l_name, [np.nan]) for l_name in cf.losses_to_monitor] )
-    metric_classes = []
-    if 'rois' in cf.report_score_level:
-        metric_classes.extend([v for k, v in cf.class_dict.items()])
-        if hasattr(cf, "eval_bins_separately") and cf.eval_bins_separately:
-            metric_classes.extend([v for k, v in cf.bin_dict.items()])
-    if 'patient' in cf.report_score_level:
-        metric_classes.extend(['patient_' + cf.class_dict[cf.patient_class_of_interest]])
-        if hasattr(cf, "eval_bins_separately") and cf.eval_bins_separately:
-            metric_classes.extend(['patient_' + cf.bin_dict[cf.patient_bin_of_interest]])
-    for cl in metric_classes:
-        for m in cf.metrics:
-            metrics['train'][cl + '_' + m] = [np.nan]
-            metrics['val'][cl + '_' + m] = [np.nan]
 
-    return metrics
+    if is_training:
 
+        if use_stored_settings:
+            cf_file = import_module('cf', os.path.join(exp_path, 'configs.py'))
+            cf = cf_file.Configs(server_env)
+            # in this mode, previously saved model and backbone need to be found in exp dir.
+            if not os.path.isfile(os.path.join(exp_path, 'model.py')) or \
+                    not os.path.isfile(os.path.join(exp_path, 'backbone.py')):
+                raise Exception(
+                    "Selected use_stored_settings option but no model and/or backbone source files exist in exp dir.")
+            cf.model_path = os.path.join(exp_path, 'model.py')
+            cf.backbone_path = os.path.join(exp_path, 'backbone.py')
+        else:  # this case overwrites settings files in exp dir, i.e., default_configs, configs, backbone, model
+            os.makedirs(exp_path, exist_ok=True)
+            # run training with source code info and copy snapshot of model to exp_dir for later testing (overwrite scripts if exp_dir already exists.)
+            subprocess.call('cp {} {}'.format('default_configs.py', os.path.join(exp_path, 'default_configs.py')),
+                            shell=True)
+            subprocess.call(
+                'cp {} {}'.format(os.path.join(dataset_path, 'configs.py'), os.path.join(exp_path, 'configs.py')),
+                shell=True)
+            cf_file = import_module('cf_file', os.path.join(dataset_path, 'configs.py'))
+            cf = cf_file.Configs(server_env)
+            subprocess.call('cp {} {}'.format(cf.model_path, os.path.join(exp_path, 'model.py')), shell=True)
+            subprocess.call('cp {} {}'.format(cf.backbone_path, os.path.join(exp_path, 'backbone.py')), shell=True)
+            if os.path.isfile(os.path.join(exp_path, "fold_ids.pickle")):
+                subprocess.call('rm {}'.format(os.path.join(exp_path, "fold_ids.pickle")), shell=True)
 
-class _AnsiColorizer(object):
-    """
-    A colorizer is an object that loosely wraps around a stream, allowing
-    callers to write text to the stream in a particular color.
+    else:  # testing, use model and backbone stored in exp dir.
+        cf_file = import_module('cf', os.path.join(exp_path, 'configs.py'))
+        cf = cf_file.Configs(server_env)
+        cf.model_path = os.path.join(exp_path, 'model.py')
+        cf.backbone_path = os.path.join(exp_path, 'backbone.py')
 
-    Colorizer classes must implement C{supported()} and C{write(text, color)}.
-    """
-    _colors = dict(black=30, red=31, green=32, yellow=33,
-                   blue=34, magenta=35, cyan=36, white=37, default=39)
+    cf.exp_dir = exp_path
+    cf.test_dir = os.path.join(cf.exp_dir, 'test')
+    cf.plot_dir = os.path.join(cf.exp_dir, 'plots')
+    if not os.path.exists(cf.test_dir):
+        os.mkdir(cf.test_dir)
+    if not os.path.exists(cf.plot_dir):
+        os.mkdir(cf.plot_dir)
+    cf.experiment_name = exp_path.split("/")[-1]
+    cf.dataset_name = dataset_path
+    cf.server_env = server_env
+    cf.created_fold_id_pickle = False
 
-    def __init__(self, stream):
-        self.stream = stream
-
-    @classmethod
-    def supported(cls, stream=sys.stdout):
-        """
-        A class method that returns True if the current platform supports
-        coloring terminal output using this method. Returns False otherwise.
-        """
-        if not stream.isatty():
-            return False  # auto color only on TTYs
-        try:
-            import curses
-        except ImportError:
-            return False
-        else:
-            try:
-                try:
-                    return curses.tigetnum("colors") > 2
-                except curses.error:
-                    curses.setupterm()
-                    return curses.tigetnum("colors") > 2
-            except:
-                raise
-                # guess false in case of error
-                return False
-
-    def write(self, text, color):
-        """
-        Write the given text to the stream in the given color.
-
-        @param text: Text to be written to the stream.
-
-        @param color: A string label for a color. e.g. 'red', 'white'.
-        """
-        color = self._colors[color]
-        self.stream.write('\x1b[%sm%s\x1b[0m' % (color, text))
-
-
-class ColorHandler(logging.StreamHandler):
-
-    def __init__(self, stream=sys.stdout):
-        super(ColorHandler, self).__init__(_AnsiColorizer(stream))
-
-    def emit(self, record):
-        msg_colors = {
-            logging.DEBUG: "green",
-            logging.INFO: "default",
-            logging.WARNING: "red",
-            logging.ERROR: "red"
-        }
-        color = msg_colors.get(record.levelno, "blue")
-        self.stream.write(record.msg + "\n", color)
+    return cf

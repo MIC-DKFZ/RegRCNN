@@ -129,7 +129,7 @@ class DefaultConfigs:
         #  Optimization         #
         #########################
 
-        self.optimizer = "ADAM" # "ADAM" or "SGD" or implemented additionals
+        self.optimizer = "ADAMW" # "ADAMW" or "SGD" or implemented additionals
 
         #########################
         #  Schedule             #

@@ -616,9 +616,11 @@ class Evaluator():
         # -------------- metrics calc dependent on class, score level ------------
 
         all_stats = [] # all_stats: one entry per score_level per class
+
         for cl in list(obj_cl_dict.keys()):    # bg eval is neglected
             cl_name = obj_cl_dict[cl]
             cl_df = df[df.pred_class == cl]
+
             if hasattr(self, "seg_df") and not boxes_only:
                 dice_col = self.cf.seg_id2label[cl].name+"_dice"
                 seg_cl_df = self.seg_df.loc[:,['pid', dice_col, 'fold']]
@@ -830,6 +832,13 @@ class Evaluator():
                     pool.join()
                     self.logger.info('results from scanning over det_threshs: {}'.format([[i, j] for i, j in zip(conf_threshs, aps)]))
 
+        class_means = pd.DataFrame(columns=self.cf.report_score_level)
+        for slevel in self.cf.report_score_level:
+            level_stats = pd.DataFrame([stats for stats in all_stats if slevel in stats["name"]])[self.cf.metrics]
+            class_means.loc[:, slevel] = level_stats.mean()
+        all_stats.extend([{"name": 'fold_{} {} {}'.format(self.cf.fold, slevel, "class_means"), **level_means} for
+                          slevel, level_means in class_means.to_dict().items()])
+
         if self.cf.plot_stat_curves:
             out_filename = os.path.join(self.curves_dir, '{}_{}_stat_curves'.format(self.cf.fold, self.mode))
             plg.plot_stat_curves(self.cf, all_stats, out_filename)
@@ -920,7 +929,7 @@ class Evaluator():
                     handle.write('{},'.format('Exact GT'))
                 for s in stats:
                     assert "overall" in s['name'].split(" ")[0]
-                    if self.cf.class_dict[self.cf.patient_class_of_interest] in s['name']:
+                    if self.cf.class_dict[self.cf.patient_class_of_interest] in s['name'] or "mean" in s["name"]:
                         for metric in metrics_to_score:
                             if metric in s.keys() and not np.isnan(s[metric]):
                                 if metric=='ap':
@@ -943,7 +952,7 @@ class Evaluator():
                 if hasattr(self.cf, "test_against_exact_gt"):
                     handle.write('{},'.format(self.cf.test_against_exact_gt))
                 for s in stats:
-                    if self.cf.class_dict[self.cf.patient_class_of_interest] in s['name']:
+                    if self.cf.class_dict[self.cf.patient_class_of_interest] in s['name'] or "mean" in s["name"]:
                         for metric in metrics_to_score:
                             if metric in s.keys() and not np.isnan(s[metric]): # needed as long as no dice on patient level possible
                                 if "folds_mean" in metric:

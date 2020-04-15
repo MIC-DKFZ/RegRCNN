@@ -40,7 +40,7 @@ class Configs(DefaultConfigs):
         self.dim = 2
         DefaultConfigs.__init__(self, server_env, self.dim)
         # one out of ['mrcnn', 'retina_net', 'retina_unet', 'detection_unet', 'ufrcnn'].
-        self.model = 'detection_fpn'
+        self.model = 'mrcnn'
         self.model_path = 'models/{}.py'.format(self.model if not 'retina' in self.model else 'retina_net')
         self.model_path = os.path.join(self.source_dir, self.model_path)
         # int [0 < dataset_size]. select n patients from dataset for prototyping.
@@ -92,12 +92,6 @@ class Configs(DefaultConfigs):
         # set 2D network to operate in 3D images.
         self.merge_2D_to_3D_preds = False
 
-        # feed +/- n neighbouring slices into channel dimension. set to None for no context.
-        self.n_3D_context = None
-        if self.n_3D_context is not None and self.dim == 2:
-            self.n_channels *= (self.n_3D_context * 2 + 1)
-
-
         #########################
         #      Architecture      #
         #########################
@@ -108,7 +102,7 @@ class Configs(DefaultConfigs):
         self.norm = None # one of None, 'instance_norm', 'batch_norm'
 
         # one of 'xavier_uniform', 'xavier_normal', or 'kaiming_normal', None (=default = 'kaiming_uniform')
-        self.weight_init = None
+        self.weight_init = "xavier_uniform"
 
         # compatibility
         self.regression_n_features = 1
@@ -119,7 +113,7 @@ class Configs(DefaultConfigs):
         #  Schedule / Selection #
         #########################
 
-        self.num_epochs = 32
+        self.num_epochs = 24
         self.num_train_batches = 100 if self.dim == 2 else 200
         self.batch_size = 20 if self.dim == 2 else 8
 
@@ -132,13 +126,15 @@ class Configs(DefaultConfigs):
         if self.val_mode == 'val_sampling':
             self.num_val_batches = 50
 
+        self.optimizer = "ADAMW"
+
         # set dynamic_lr_scheduling to True to apply LR scheduling with below settings.
         self.dynamic_lr_scheduling = True
-        self.lr_decay_factor = 0.5
+        self.lr_decay_factor = 0.25
         self.scheduling_patience = np.ceil(2400 / (self.num_train_batches * self.batch_size))
         self.scheduling_criterion = 'donuts_ap'
         self.scheduling_mode = 'min' if "loss" in self.scheduling_criterion else 'max'
-        self.weight_decay = 0
+        self.weight_decay = 3e-5
         self.clip_norm = None
 
         #########################
@@ -169,7 +165,7 @@ class Configs(DefaultConfigs):
         self.seg_id2label = {label.id: label for label in self.seg_labels}
         self.cmap = {label.id: label.color for label in self.seg_labels}
 
-
+        self.metrics = ["ap", "auc"]
         self.patient_class_of_interest = 2  # patient metrics are only plotted for one class.
         self.ap_match_ious = [0.1]  # list of ious to be evaluated for ap-scoring.
 
@@ -246,7 +242,7 @@ class Configs(DefaultConfigs):
     def add_mrcnn_configs(self):
 
         # learning rate is a list with one entry per epoch.
-        self.learning_rate = [1e-3] * self.num_epochs
+        self.learning_rate = [3e-4] * self.num_epochs
 
         # disable mask head loss. (e.g. if no pixelwise annotations available)
         self.frcnn_mode = False

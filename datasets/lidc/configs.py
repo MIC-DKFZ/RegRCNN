@@ -61,7 +61,7 @@ class Configs(DefaultConfigs):
             self.data_sourcedir = '/datasets/datasets_ramien/lidc/data/{}_npz/'.format(self.pp_name)
 
         # one out of ['mrcnn', 'retina_net', 'retina_unet', 'detection_fpn'].
-        self.model = 'retina_net'
+        self.model = 'retina_unet'
         self.model_path = 'models/{}.py'.format(self.model if not 'retina' in self.model else 'retina_net')
         self.model_path = os.path.join(self.source_dir, self.model_path)
 
@@ -83,7 +83,7 @@ class Configs(DefaultConfigs):
         self.start_filts = 48 if self.dim == 2 else 18
         self.end_filts = self.start_filts * 4 if self.dim == 2 else self.start_filts * 2
         self.res_architecture = 'resnet50' # 'resnet101' , 'resnet50'
-        self.norm = None # one of None, 'instance_norm', 'batch_norm'
+        self.norm = "instance_norm" # one of None, 'instance_norm', 'batch_norm'
 
         # one of 'xavier_uniform', 'xavier_normal', or 'kaiming_normal', None (=default = 'kaiming_uniform')
         self.weight_init = None
@@ -114,8 +114,7 @@ class Configs(DefaultConfigs):
         self.pre_crop_size = self.pre_crop_size_2D if self.dim == 2 else self.pre_crop_size_3D
 
         # ratio of free sampled batch elements before class balancing is triggered
-        # (>0 to include "empty"/background patches.)
-        self.batch_random_ratio = 0.3
+        self.batch_random_ratio = 0.2
         self.balance_target =  "class_targets" if 'class' in self.prediction_tasks else 'rg_bin_targets'
 
         # set 2D network to match 3D gt boxes.
@@ -242,7 +241,7 @@ class Configs(DefaultConfigs):
         elif any("regression" in task for task in self.prediction_tasks):
             self.model_selection_criteria = {"lesion_ap": 0.2, "lesion_avp": 0.8}
 
-        self.weight_decay = 0
+        self.weight_decay = 3e-5
         self.clip_norm = 200 if 'regression_ken_gal' in self.prediction_tasks else None  # number or None
 
         # int in [0, dataset_size]. select n patients from dataset for prototyping. If None, all data is used.
@@ -332,7 +331,7 @@ class Configs(DefaultConfigs):
     def add_mrcnn_configs(self):
 
         # learning rate is a list with one entry per epoch.
-        self.learning_rate = [1e-4] * self.num_epochs
+        self.learning_rate = [3e-4] * self.num_epochs
         self.dynamic_lr_scheduling = False
         # disable the re-sampling of mask proposals to original size for speed-up.
         # since evaluation is detection-driven (box-matching) and not instance segmentation-driven (iou-matching),
@@ -370,7 +369,7 @@ class Configs(DefaultConfigs):
         self.rpn_nms_threshold = 0.7 if self.dim == 2 else 0.7
 
         # loss sampling settings.
-        self.rpn_train_anchors_per_image = 6  #per batch element
+        self.rpn_train_anchors_per_image = 64  #per batch element
         self.train_rois_per_image = 6 #per batch element
         self.roi_positive_ratio = 0.5
         self.anchor_matching_iou = 0.7

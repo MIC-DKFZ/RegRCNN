@@ -107,7 +107,7 @@ class Configs(DefaultConfigs):
         #########################
 
         # one out of [2, 3]. dimension the model operates in.
-        self.dim = 2
+        self.dim = 3
 
         # 'class', 'regression', 'regression_bin', 'regression_ken_gal'
         # currently only tested mode is a single-task at a time (i.e., only one task in below list)
@@ -261,9 +261,9 @@ class Configs(DefaultConfigs):
             self.model_selection_criteria = {name + "_ap": 0.2 for name in self.class_dict.values()}
             self.model_selection_criteria.update({name + "_avp": 0.8 for name in self.class_dict.values()})
 
-        self.lr_decay_factor = 0.5
+        self.lr_decay_factor = 0.25
         self.scheduling_patience = int(self.num_epochs / 5)
-        self.weight_decay = 1e-5
+        self.weight_decay = 3e-5
         self.clip_norm = None  # number or None
 
         #########################
@@ -377,7 +377,7 @@ class Configs(DefaultConfigs):
 
     def add_mrcnn_configs(self):
 
-      self.learning_rate = [1e-4] * self.num_epochs
+      self.learning_rate = [3e-4] * self.num_epochs
       self.dynamic_lr_scheduling = True  # with scheduler set in exec
       self.scheduling_criterion = max(self.model_selection_criteria, key=self.model_selection_criteria.get)
       self.scheduling_mode = 'min' if "loss" in self.scheduling_criterion else 'max'

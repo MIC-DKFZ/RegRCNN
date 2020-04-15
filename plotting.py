@@ -750,7 +750,7 @@ def view_3D_array(arr, outfile, elev=30, azim=30):
 def view_batch(cf, batch, res_dict=None, out_file=None, legend=True, show_info=True, has_colorchannels=False,
                isRGB=True, show_seg_ids="all", show_seg_pred=True, show_gt_boxes=True, show_gt_labels=False,
                roi_items="all", sample_picks=None, vol_slice_picks=None, box_score_thres=None, plot_mods=True,
-               dpi=200, vmin=None, return_fig=False, get_time=True):
+               dpi=300, vmin=None, return_fig=False, get_time=True):
     r""" View data and target entries of a batch.
 
     Batch expected as dic with entries 'data' and 'seg' holding np.arrays of

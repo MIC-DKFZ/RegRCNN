@@ -50,13 +50,15 @@ def train(cf, logger):
 
     # -------------- inits and settings -----------------
     net = model.net(cf, logger).cuda()
-    if cf.optimizer == "ADAM":
-        optimizer = torch.optim.Adam(net.parameters(), lr=cf.learning_rate[0], weight_decay=cf.weight_decay)
+    if cf.optimizer == "ADAMW":
+        optimizer = torch.optim.AdamW(utils.parse_params_for_optim(net, weight_decay=cf.weight_decay),
+                                      lr=cf.learning_rate[0])
     elif cf.optimizer == "SGD":
-        optimizer = torch.optim.SGD(net.parameters(), lr=cf.learning_rate[0], weight_decay=cf.weight_decay, momentum=0.3)
+        optimizer = torch.optim.SGD(utils.parse_params_for_optim(net, weight_decay=cf.weight_decay),
+                                    lr=cf.learning_rate[0], momentum=0.3)
     if cf.dynamic_lr_scheduling:
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode=cf.scheduling_mode, factor=cf.lr_decay_factor,
-                                                                    patience=cf.scheduling_patience)
+                                                               patience=cf.scheduling_patience)
     model_selector = utils.ModelSelector(cf, logger)
 
     starting_epoch = 1
@@ -235,9 +237,9 @@ if __name__ == '__main__':
         cf = utils.prep_exp(args.dataset_name, args.exp_dir, args.server_env, args.use_stored_settings)
         if args.dev:
             folds = [0,1]
-            cf.batch_size, cf.num_epochs, cf.min_save_thresh, cf.save_n_models = 3 if cf.dim==2 else 1, 2, 0, 1
+            cf.batch_size, cf.num_epochs, cf.min_save_thresh, cf.save_n_models = 3 if cf.dim==2 else 1, 2, 0, 2
             cf.num_train_batches, cf.num_val_batches, cf.max_val_patients = 5, 1, 1
-            cf.test_n_epochs =  cf.save_n_models
+            cf.test_n_epochs = cf.save_n_models
             cf.max_test_patients = 1
             torch.backends.cudnn.benchmark = cf.dim==3
         else:

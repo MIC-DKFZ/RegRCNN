@@ -494,7 +494,6 @@ class net(nn.Module):
         self.logger = logger
         self.build()
         if self.cf.weight_init is not None:
-            logger.info("using pytorch weight init of type {}".format(self.cf.weight_init))
             mutils.initialize_weights(self)
         else:
             logger.info("using default pytorch weight init")

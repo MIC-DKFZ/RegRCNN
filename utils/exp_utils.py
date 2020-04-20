@@ -639,7 +639,8 @@ def parse_params_for_optim(net: torch.nn.Module, weight_decay: float = 0., exclu
     exclude_module_types = tuple([type_ for k, v in level_map.items() if (k in exclude_from_wd and v == "module")
                                   for type_ in type_map[k]])
 
-    print("excluding {} from weight decay.".format(exclude_from_wd))
+    if exclude_from_wd:
+        print("excluding {} from weight decay.".format(exclude_from_wd))
 
     with_dec, no_dec = [], []
     for name, module in net.named_modules():

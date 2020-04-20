@@ -374,7 +374,7 @@ def refine_proposals(rpn_pred_probs, rpn_pred_deltas, proposal_count, batch_anch
     Receives anchor scores and selects a subset to pass as proposals
     to the second stage. Filtering is done based on anchor scores and
     non-max suppression to remove overlaps. It also applies bounding
-    box refinment details to anchors.
+    box refinement details to anchors.
     :param rpn_pred_probs: (b, n_anchors, 2)
     :param rpn_pred_deltas: (b, n_anchors, (y, x, (z), log(h), log(w), (log(d))))
     :return: batch_normalized_props: Proposals in normalized coordinates (b, proposal_count, (y1, x1, y2, x2, (z1), (z2), score))
@@ -384,7 +384,6 @@ def refine_proposals(rpn_pred_probs, rpn_pred_deltas, proposal_count, batch_anch
     std_dev = torch.from_numpy(cf.rpn_bbox_std_dev[None]).float().cuda()
     norm = torch.from_numpy(cf.scale).float().cuda()
     anchors = batch_anchors.clone()
-
 
 
     batch_scores = rpn_pred_probs[:, :, 1]
@@ -399,6 +398,12 @@ def refine_proposals(rpn_pred_probs, rpn_pred_deltas, proposal_count, batch_anch
         scores = batch_scores[ix]
         deltas = batch_deltas[ix]
 
+        non_nans = deltas == deltas
+        assert torch.all(non_nans), "deltas have nans: {}".format(deltas[~non_nans])
+
+        non_nans = anchors == anchors
+        assert torch.all(non_nans), "anchors have nans: {}".format(anchors[~non_nans])
+
         # improve performance by trimming to top anchors by score
         # and doing the rest on the smaller subset.
         pre_nms_limit = min(cf.pre_nms_limit, anchors.size()[0])
@@ -410,10 +415,15 @@ def refine_proposals(rpn_pred_probs, rpn_pred_deltas, proposal_count, batch_anch
         # apply deltas to anchors to get refined anchors and filter with non-maximum suppression.
         if batch_deltas.shape[-1] == 4:
             boxes = apply_box_deltas_2D(anchors[order, :], deltas)
+            non_nans = boxes == boxes
+            assert torch.all(non_nans), "unnormalized boxes before clip/after delta apply have nans: {}".format(boxes[~non_nans])
             boxes = clip_boxes_2D(boxes, cf.window)
         else:
             boxes = apply_box_deltas_3D(anchors[order, :], deltas)
             boxes = clip_boxes_3D(boxes, cf.window)
+
+        non_nans = boxes == boxes
+        assert torch.all(non_nans), "unnormalized boxes before nms/after clip have nans: {}".format(boxes[~non_nans])
         # boxes are y1,x1,y2,x2, torchvision-nms requires x1,y1,x2,y2, but consistent swap x<->y is irrelevant.
         keep = nms.nms(boxes, scores, cf.rpn_nms_threshold)
 
@@ -433,10 +443,11 @@ def refine_proposals(rpn_pred_probs, rpn_pred_deltas, proposal_count, batch_anch
         # concat box and score info for monitoring/plotting.
         batch_out_proposals.append(torch.cat((boxes, rpn_scores), 1).cpu().data.numpy())
         # normalize dimensions to range of 0 to 1.
+        non_nans = boxes == boxes
+        assert torch.all(non_nans), "unnormalized boxes after nms have nans: {}".format(boxes[~non_nans])
         normalized_boxes = boxes / norm
         where = normalized_boxes <=1
-        assert torch.all(where), "normalized box coords >1 found:\n {}\n".format(normalized_boxes[where])
-        #assert torch.all(normalized_boxes <= 1), "normalized box coords >1 found"
+        assert torch.all(where), "normalized box coords >1 found:\n {}\n".format(normalized_boxes[~where])
 
         # add again batch dimension
         batch_normalized_props.append(torch.cat((normalized_boxes, rpn_scores), 1).unsqueeze(0))
@@ -1028,6 +1039,10 @@ def apply_box_deltas_2D(boxes, deltas):
     deltas: [N, 4] where each row is [dy, dx, log(dh), log(dw)]
     """
     # Convert to y, x, h, w
+    non_nans = boxes == boxes
+    assert torch.all(non_nans), "boxes at beginning of delta apply have nans: {}".format(
+        boxes[~non_nans])
+
     height = boxes[:, 2] - boxes[:, 0]
     width = boxes[:, 3] - boxes[:, 1]
     center_y = boxes[:, 0] + 0.5 * height
@@ -1037,12 +1052,33 @@ def apply_box_deltas_2D(boxes, deltas):
     center_x += deltas[:, 1] * width
     height *= torch.exp(deltas[:, 2])
     width *= torch.exp(deltas[:, 3])
+
+    non_nans = width == width
+    assert torch.all(non_nans), "inside delta apply, width has nans: {}".format(
+        width[~non_nans])
+
+    # 0.*inf results in nan. fix nans to zeros.
+    height[height!=height] = 0.
+    width[width!=width] = 0.
+
+    non_nans = height == height
+    assert torch.all(non_nans), "inside delta apply, height has nans directly after setting to zero: {}".format(
+        height[~non_nans])
+
+    non_nans = width == width
+    assert torch.all(non_nans), "inside delta apply, width has nans directly after setting to zero: {}".format(
+        width[~non_nans])
+
     # Convert back to y1, x1, y2, x2
     y1 = center_y - 0.5 * height
     x1 = center_x - 0.5 * width
     y2 = y1 + height
     x2 = x1 + width
     result = torch.stack([y1, x1, y2, x2], dim=1)
+
+    non_nans = result == result
+    assert torch.all(non_nans), "inside delta apply, result has nans: {}".format(result[~non_nans])
+
     return result
 
 

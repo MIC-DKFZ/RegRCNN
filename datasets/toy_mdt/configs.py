@@ -46,7 +46,8 @@ class Configs(DefaultConfigs):
         # int [0 < dataset_size]. select n patients from dataset for prototyping.
         self.select_prototype_subset = None
         self.held_out_test_set = True
-        self.n_train_data = 2500
+        # including val set. will be 3/4 train, 1/4 val.
+        self.n_train_val_data = 2500
 
         # choose one of the 3 toy experiments described in https://arxiv.org/pdf/1811.08661.pdf
         # one of ['donuts_shape', 'donuts_pattern', 'circles_scale'].
@@ -99,7 +100,7 @@ class Configs(DefaultConfigs):
         self.start_filts = 48 if self.dim == 2 else 18
         self.end_filts = self.start_filts * 4 if self.dim == 2 else self.start_filts * 2
         self.res_architecture = 'resnet50' # 'resnet101' , 'resnet50'
-        self.norm = None # one of None, 'instance_norm', 'batch_norm'
+        self.norm = "instance_norm" # one of None, 'instance_norm', 'batch_norm'
 
         # one of 'xavier_uniform', 'xavier_normal', or 'kaiming_normal', None (=default = 'kaiming_uniform')
         self.weight_init = "xavier_uniform"
@@ -135,6 +136,7 @@ class Configs(DefaultConfigs):
         self.scheduling_criterion = 'donuts_ap'
         self.scheduling_mode = 'min' if "loss" in self.scheduling_criterion else 'max'
         self.weight_decay = 3e-5
+        self.exclude_from_wd = []
         self.clip_norm = None
 
         #########################
@@ -165,7 +167,7 @@ class Configs(DefaultConfigs):
         self.seg_id2label = {label.id: label for label in self.seg_labels}
         self.cmap = {label.id: label.color for label in self.seg_labels}
 
-        self.metrics = ["ap", "auc"]
+        self.metrics = ["ap", "auc", "dice"]
         self.patient_class_of_interest = 2  # patient metrics are only plotted for one class.
         self.ap_match_ious = [0.1]  # list of ious to be evaluated for ap-scoring.
 
@@ -218,7 +220,7 @@ class Configs(DefaultConfigs):
 
     def add_det_fpn_configs(self):
 
-      self.learning_rate = [1 * 1e-3] * self.num_epochs
+      self.learning_rate = [3 * 1e-4] * self.num_epochs
       self.dynamic_lr_scheduling = True
       self.scheduling_criterion = 'torch_loss'
       self.scheduling_mode = 'min' if "loss" in self.scheduling_criterion else 'max'
@@ -280,7 +282,7 @@ class Configs(DefaultConfigs):
         self.rpn_nms_threshold = 0.7 if self.dim == 2 else 0.7
 
         # loss sampling settings.
-        self.rpn_train_anchors_per_image = 64 #per batch element
+        self.rpn_train_anchors_per_image = 32 #per batch element
         self.train_rois_per_image = 2 #per batch element
         self.roi_positive_ratio = 0.5
         self.anchor_matching_iou = 0.7
@@ -332,6 +334,8 @@ class Configs(DefaultConfigs):
                                              )])
 
         if self.model == 'retina_net' or self.model == 'retina_unet':
+            # whether to use focal loss or SHEM for loss-sample selection
+            self.focal_loss = False
             # implement extra anchor-scales according to retina-net publication.
             self.rpn_anchor_scales['xy'] = [[ii[0], ii[0] * (2 ** (1 / 3)), ii[0] * (2 ** (2 / 3))] for ii in
                                             self.rpn_anchor_scales['xy']]

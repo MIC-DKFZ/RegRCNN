@@ -265,8 +265,11 @@ def get_train_generators(cf, logger, data_statistics=False):
     """
     dataset = Dataset(cf, logger)
 
-    train_ids = dataset.set_ids[:cf.n_train_data]
-    val_ids = dataset.set_ids[1000:1500]
+    assert cf.n_train_val_data <= len(dataset.set_ids), \
+        "requested {} train val samples, but dataset only has {} train val samples.".format(
+            cf.n_train_val_data, len(dataset.set_ids))
+    train_ids = dataset.set_ids[:int(2*cf.n_train_val_data//3)]
+    val_ids = dataset.set_ids[int(np.ceil(2*cf.n_train_val_data//3)):cf.n_train_val_data]
 
     train_data = {k: v for (k, v) in dataset.data.items() if str(k) in train_ids}
     val_data = {k: v for (k, v) in dataset.data.items() if str(k) in val_ids}

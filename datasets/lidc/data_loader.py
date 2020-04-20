@@ -465,6 +465,7 @@ class BatchGenerator_sa(BatchGeneratorParent):
         :param plot: whether to plot the generated patient distributions
         :return: probability distribution over all pids. draw without replace from this.
         """
+        # todo limit bg weights
         unique_ts = np.unique([v[rater] for pat in self.targets.values() for v in pat])
         sample_stats = pd.DataFrame(columns=[str(ix) + suffix for ix in unique_ts for suffix in ["", "_bg"]],
                                          index=list(self.targets.keys()))

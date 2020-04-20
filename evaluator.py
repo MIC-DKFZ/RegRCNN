@@ -249,7 +249,7 @@ class Evaluator():
 
         self.regress_flag = any(['regression' in task for task in self.cf.prediction_tasks])
 
-        self.plot_dir = self.cf.plot_dir if not self.mode == "test" else self.cf.test_dir
+        self.plot_dir = self.cf.test_dir if self.mode == "test" else self.cf.plot_dir
         if self.cf.plot_prediction_histograms:
             self.hist_dir = os.path.join(self.plot_dir, 'histograms')
             os.makedirs(self.hist_dir, exist_ok=True)
@@ -857,7 +857,7 @@ class Evaluator():
         and calculates and writes out overall metrics.
         """
         # this should maybe be extended to auc, ap stds.
-        metrics_to_score = self.cf.metrics # + [ m+ext for m in self.cf.metrics if "dice" in m for ext in ["_std"]]
+        metrics_to_score = self.cf.metrics.copy() # + [ m+ext for m in self.cf.metrics if "dice" in m for ext in ["_std"]]
 
         if internal_df:
 

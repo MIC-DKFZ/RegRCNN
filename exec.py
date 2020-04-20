@@ -51,7 +51,8 @@ def train(cf, logger):
     # -------------- inits and settings -----------------
     net = model.net(cf, logger).cuda()
     if cf.optimizer == "ADAMW":
-        optimizer = torch.optim.AdamW(utils.parse_params_for_optim(net, weight_decay=cf.weight_decay),
+        optimizer = torch.optim.AdamW(utils.parse_params_for_optim(net, weight_decay=cf.weight_decay,
+                                                                   exclude_from_wd=cf.exclude_from_wd),
                                       lr=cf.learning_rate[0])
     elif cf.optimizer == "SGD":
         optimizer = torch.optim.SGD(utils.parse_params_for_optim(net, weight_decay=cf.weight_decay),

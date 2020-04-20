@@ -61,7 +61,7 @@ class Configs(DefaultConfigs):
             self.data_sourcedir = '/datasets/datasets_ramien/lidc/data/{}_npz/'.format(self.pp_name)
 
         # one out of ['mrcnn', 'retina_net', 'retina_unet', 'detection_fpn'].
-        self.model = 'retina_unet'
+        self.model = 'mrcnn'
         self.model_path = 'models/{}.py'.format(self.model if not 'retina' in self.model else 'retina_net')
         self.model_path = os.path.join(self.source_dir, self.model_path)
 
@@ -114,7 +114,7 @@ class Configs(DefaultConfigs):
         self.pre_crop_size = self.pre_crop_size_2D if self.dim == 2 else self.pre_crop_size_3D
 
         # ratio of free sampled batch elements before class balancing is triggered
-        self.batch_random_ratio = 0.2
+        self.batch_random_ratio = 0.1
         self.balance_target =  "class_targets" if 'class' in self.prediction_tasks else 'rg_bin_targets'
 
         # set 2D network to match 3D gt boxes.
@@ -241,7 +241,8 @@ class Configs(DefaultConfigs):
         elif any("regression" in task for task in self.prediction_tasks):
             self.model_selection_criteria = {"lesion_ap": 0.2, "lesion_avp": 0.8}
 
-        self.weight_decay = 3e-5
+        self.weight_decay = 1e-5
+        self.exclude_from_wd = []
         self.clip_norm = 200 if 'regression_ken_gal' in self.prediction_tasks else None  # number or None
 
         # int in [0, dataset_size]. select n patients from dataset for prototyping. If None, all data is used.
@@ -304,7 +305,7 @@ class Configs(DefaultConfigs):
 
     def add_det_fpn_configs(self):
 
-        self.learning_rate = [1e-4] * self.num_epochs
+        self.learning_rate = [3e-4] * self.num_epochs
         self.dynamic_lr_scheduling = False
 
         # RoI score assigned to aggregation from pixel prediction (connected component). One of ['max', 'median'].

@@ -322,6 +322,7 @@ class BatchGenerator(SlimDataLoaderBase):
 
         self.dataset_length = len(self._data)
         self.dataset_pids = list(self._data.keys())
+
         self.n_filled_threads = min(int(self.dataset_length/self.batch_size), self.number_of_threads_in_multithreaded)
         if self.n_filled_threads != self.number_of_threads_in_multithreaded:
             print("Adjusting nr of threads from {} to {}.".format(self.number_of_threads_in_multithreaded,
@@ -369,6 +370,9 @@ class BatchGenerator(SlimDataLoaderBase):
         :param self.targets:  dic holding {patient_specifier : patient-wise-unique ROI targets}
         :return: probability distribution over all pids. draw without replace from this.
         """
+        # oversampling of fg: limit bg weights to 1 s.t. bg is weighted at max as heavily as it occurs.
+        max_bg_weight = 1.
+
         self.unique_ts = np.unique([v for pat in self.targets.values() for v in pat])
         self.sample_stats = pd.DataFrame(columns=[str(ix)+suffix for ix in self.unique_ts for suffix in ["", "_bg"]], index=list(self.targets.keys()))
         for pid in self.sample_stats.index:
@@ -384,19 +388,13 @@ class BatchGenerator(SlimDataLoaderBase):
         self.fg_bg_weights = anchor / self.targ_stats.loc["relative"]
         cum_weights = anchor * len(self.fg_bg_weights)
         self.fg_bg_weights /= cum_weights
+        mask = ["_bg" in ix for ix in self.fg_bg_weights.index]
+        self.fg_bg_weights.loc[mask] = self.fg_bg_weights.loc[mask].apply(lambda x: min(x, max_bg_weight))
 
         self.p_probs = self.sample_stats.apply(self.sample_targets_to_weights, args=(self.fg_bg_weights,), axis=1).sum(axis=1)
         self.p_probs = self.p_probs / self.p_probs.sum()
         if plot:
             print("Applying class-weights:\n {}".format(self.fg_bg_weights))
-        if len(self.sample_stats.columns) == 2:
-            # assert that probs are calc'd correctly:
-            # (self.p_probs * self.sample_stats["1"]).sum() == (self.p_probs * self.sample_stats["1_bg"]).sum()
-            # only works if one label per patient (multi-label expectations depend on multi-label occurences).
-            expectations = []
-            for targ in self.sample_stats.columns:
-                expectations.append((self.p_probs * self.sample_stats[targ]).sum())
-            assert np.allclose(expectations, expectations[0], atol=1e-4), "expectation values for fgs/bgs: {}".format(expectations)
 
         self.stats = {"roi_counts": np.zeros(len(self.unique_ts,), dtype='uint32'),
                       "empty_counts": np.zeros(len(self.unique_ts,), dtype='uint32')}

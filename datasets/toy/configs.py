@@ -88,7 +88,7 @@ class Configs(DefaultConfigs):
         self.data_sourcedir = '/home/gregor/datasets/toy/cyl1ps_dev'
 
         if server_env:
-            self.data_sourcedir = '/datasets/data_ramien/toy/cyl1ps_dev_npz'
+            self.data_sourcedir = '/datasets/datasets_ramien/toy/data/cyl1ps_dev_npz'
 
 
         self.test_data_sourcedir = os.path.join(self.data_sourcedir, 'test')
@@ -107,7 +107,7 @@ class Configs(DefaultConfigs):
         #########################
 
         # one out of [2, 3]. dimension the model operates in.
-        self.dim = 3
+        self.dim = 2
 
         # 'class', 'regression', 'regression_bin', 'regression_ken_gal'
         # currently only tested mode is a single-task at a time (i.e., only one task in below list)
@@ -129,9 +129,9 @@ class Configs(DefaultConfigs):
         #      Data Loader      #
         #########################
 
-        self.num_epochs = 32
-        self.num_train_batches = 120 if self.dim == 2 else 180
-        self.batch_size = 8 if self.dim == 2 else 4
+        self.num_epochs = 24
+        self.num_train_batches = 100 if self.dim == 2 else 180
+        self.batch_size = 20 if self.dim == 2 else 8
 
         self.n_cv_splits = 4
         # select modalities from preprocessed data
@@ -262,8 +262,9 @@ class Configs(DefaultConfigs):
             self.model_selection_criteria.update({name + "_avp": 0.8 for name in self.class_dict.values()})
 
         self.lr_decay_factor = 0.25
-        self.scheduling_patience = int(self.num_epochs / 5)
+        self.scheduling_patience = np.ceil(1800 / (self.num_train_batches * self.batch_size))
         self.weight_decay = 3e-5
+        self.exclude_from_wd = []
         self.clip_norm = None  # number or None
 
         #########################
@@ -301,7 +302,7 @@ class Configs(DefaultConfigs):
         # iou thresh (exclusive!) for regarding two preds as concerning the same ROI
         self.clustering_iou = self.model_max_iou_resolution  # has to be larger than desired possible overlap iou of model predictions
 
-        self.merge_2D_to_3D_preds = False
+        self.merge_2D_to_3D_preds = self.dim==2
         self.merge_3D_iou = self.model_max_iou_resolution
         self.n_test_plots = 1  # per fold and rank
 
@@ -331,7 +332,7 @@ class Configs(DefaultConfigs):
 
     def add_det_fpn_configs(self):
 
-      self.learning_rate = [1 * 1e-4] * self.num_epochs
+      self.learning_rate = [3 * 1e-4] * self.num_epochs
       self.dynamic_lr_scheduling = True
       self.scheduling_criterion = 'torch_loss'
       self.scheduling_mode = 'min' if "loss" in self.scheduling_criterion else 'max'
@@ -352,7 +353,7 @@ class Configs(DefaultConfigs):
 
     def add_det_unet_configs(self):
 
-      self.learning_rate = [1 * 1e-4] * self.num_epochs
+      self.learning_rate = [3 * 1e-4] * self.num_epochs
       self.dynamic_lr_scheduling = True
       self.scheduling_criterion = "torch_loss"
       self.scheduling_mode = 'min' if "loss" in self.scheduling_criterion else 'max'
@@ -412,17 +413,17 @@ class Configs(DefaultConfigs):
       self.rpn_anchor_ratios = [0.5, 1., 2.]
       self.rpn_anchor_stride = 1
       # Threshold for first stage (RPN) non-maximum suppression (NMS):  LOWER == HARDER SELECTION
-      self.rpn_nms_threshold = max(0.8, self.model_max_iou_resolution)
+      self.rpn_nms_threshold = max(0.7, self.model_max_iou_resolution)
 
       # loss sampling settings.
-      self.rpn_train_anchors_per_image = 4
+      self.rpn_train_anchors_per_image = 32
       self.train_rois_per_image = 6 # per batch_instance
       self.roi_positive_ratio = 0.5
       self.anchor_matching_iou = 0.8
 
       # k negative example candidates are drawn from a pool of size k*shem_poolsize (stochastic hard-example mining),
       # where k<=#positive examples.
-      self.shem_poolsize = 2
+      self.shem_poolsize = 6
 
       self.pool_size = (7, 7) if self.dim == 2 else (7, 7, 3)
       self.mask_pool_size = (14, 14) if self.dim == 2 else (14, 14, 5)

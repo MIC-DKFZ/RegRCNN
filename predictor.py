@@ -872,9 +872,10 @@ class Predictor:
             self.net.load_state_dict(torch.load(weight_path))
             self.net.eval()
             self.rank_ix = str(rank_ix)
+            plot_batches = np.random.choice(np.arange(batch_gen['n_test']),
+                                            size=min(batch_gen['n_test'], self.cf.n_test_plots), replace=False)
             with torch.no_grad():
-                plot_batches = np.random.choice(np.arange(batch_gen['n_test']), size=self.cf.n_test_plots, replace=False)
-                for i in range(batch_gen['n_test']):
+                 for i in range(batch_gen['n_test']):
                     batch = next(batch_gen['test'])
                     pid = np.unique(batch['pid'])
                     assert len(pid)==1
@@ -891,13 +892,13 @@ class Predictor:
                     results_dict = self.predict_patient(batch) #only holds "boxes", "seg_preds"
                     # needs ohe seg probs in seg_preds entry:
                     results_dict['seg_preds'] = np.argmax(results_dict['seg_preds'], axis=1)[:,np.newaxis]
-                    self.logger.info("predicting patient {} with weight rank {} (progress: {}/{}) took {:.2f}s".format(
-                        str(pid), rank_ix, (rank_ix)*batch_gen['n_test']+(i+1), len(weight_paths)*batch_gen['n_test'], time.time()-stime))
+                    print("\rpredicting patient {} with weight rank {} (progress: {}/{}) took {:.2f}s".format(
+                        str(pid), rank_ix, (rank_ix)*batch_gen['n_test']+(i+1), len(weight_paths)*batch_gen['n_test'],
+                        time.time()-stime), end="", flush=True)
 
                     if i in plot_batches and (not self.patched_patient or 'patient_data' in batch.keys()):
                         try:
                             # view qualitative results of random test case
-                            self.logger.time("test_plot")
                             out_file = os.path.join(self.example_plot_dir,
                                                     'batch_example_test_{}_rank_{}.png'.format(self.cf.fold, rank_ix))
                             utils.split_off_process(plg.view_batch, self.cf, batch, results_dict,

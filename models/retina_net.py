@@ -241,7 +241,7 @@ def compute_rg_loss(tasks, target, pred, anchor_matches):
     return loss
 
 def compute_focal_class_loss(anchor_matches, class_pred_logits, gamma=2.):
-    """ Focal Loss FL = -(1-q)^g log(q) with q = pred class probability.
+    """ Focal Loss :math:`FL = -(1-q)^g log(q)` with q = pred class probability, g = gamma hyperparameter.
 
     :param anchor_matches: (n_anchors). [-1, 0, class] for negative, neutral, and positive matched anchors.
     :param class_pred_logits: (n_anchors, n_classes). logits from classifier sub-network.
@@ -249,23 +249,24 @@ def compute_focal_class_loss(anchor_matches, class_pred_logits, gamma=2.):
     :return: loss: torch tensor
     :return: focal loss
     """
-    # Positive and Negative anchors contribute to the loss,
-    # but neutral anchors (match value = 0) don't.
+    # Positive and Negative anchors contribute to the loss but neutral anchors (match value = 0) don't.
     pos_indices = torch.nonzero(anchor_matches > 0).squeeze(-1) # dim=-1 instead of 1 or 0 to cover empty matches.
     neg_indices = torch.nonzero(anchor_matches == -1).squeeze(-1)
     target_classes  = torch.cat( (anchor_matches[pos_indices].long(), torch.LongTensor([0] * neg_indices.shape[0]).cuda()) )
 
     non_neutral_indices = torch.cat( (pos_indices, neg_indices) )
-    q = F.softmax(class_pred_logits[non_neutral_indices], dim=1) # q shape: (n_non_neutral_anchors, n_classes)
+    # q shape: (n_non_neutral_anchors, n_classes)
+    q = F.softmax(class_pred_logits[non_neutral_indices], dim=1)
 
-    # one-hot encoded target classes: keep only the pred probs of the correct class. it will receive incentive to be maximized.
+    # one-hot encoded target classes: keep only the pred probs of the correct class.
+    # that class will receive the incentive to be maximized.
     # log(q_i) where i = target class --> FL shape (n_anchors,)
     # need to transform to indices into flattened tensor to use torch.take
     target_locs_flat = q.shape[1] * torch.arange(q.shape[0]).cuda() + target_classes
     q = torch.take(q, target_locs_flat)
 
     FL = torch.log(q) # element-wise log
-    FL *= -(1-q)**gamma
+    FL *= -(1.-q)**gamma
 
     # take mean over all considered anchors
     FL = FL.sum() / FL.shape[0]
@@ -748,9 +749,9 @@ class net(nn.Module):
             #self.logger.info("loss: {0:.2f}, class: {1:.2f}, bbox: {2:.2f}, seg dice: {3:.3f}, seg ce: {4:.3f}, "
             #                 "mean pixel preds: {5:.5f}".format(torch_loss.item(), batch_class_loss.item(), batch_bbox_loss.item(),
             #                                                   seg_loss_dice.item(), seg_loss_ce.item(), np.mean(results_dict['seg_preds'])))
-            if 'dice' in self.cf.metrics:
-                results_dict['batch_dices'] = mutils.dice_per_batch_and_class(
-                    results_dict['seg_preds'], batch["seg"], self.cf.num_seg_classes, convert_to_ohe=True)
+        if 'dice' in self.cf.metrics:
+            results_dict['batch_dices'] = mutils.dice_per_batch_and_class(
+                results_dict['seg_preds'], batch["seg"], self.cf.num_seg_classes, convert_to_ohe=True)
         #else:
             #self.logger.info("loss: {0:.2f}, class: {1:.2f}, bbox: {2:.2f}".format(
         #        torch_loss.item(), class_loss.item(), bbox_loss.item()))

@@ -17,7 +17,6 @@
 import sys
 sys.path.append('../') # works on cluster indep from where sbatch job is started
 import plotting as plg
-from multiprocessing import Pool
 
 import numpy as np
 import os

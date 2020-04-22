@@ -61,7 +61,7 @@ class Configs(DefaultConfigs):
             self.data_sourcedir = '/datasets/datasets_ramien/lidc/data/{}_npz/'.format(self.pp_name)
 
         # one out of ['mrcnn', 'retina_net', 'retina_unet', 'detection_fpn'].
-        self.model = 'mrcnn'
+        self.model = 'detection_fpn'
         self.model_path = 'models/{}.py'.format(self.model if not 'retina' in self.model else 'retina_net')
         self.model_path = os.path.join(self.source_dir, self.model_path)
 
@@ -71,7 +71,7 @@ class Configs(DefaultConfigs):
         #########################
 
         # dimension the model operates in. one out of [2, 3].
-        self.dim = 2
+        self.dim = 3
 
         # 'class': standard object classification per roi, pairwise combinable with each of below tasks.
         # if 'class' is omitted from tasks, object classes will be fg/bg (1/0) from RPN.

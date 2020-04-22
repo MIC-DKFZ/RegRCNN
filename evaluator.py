@@ -882,37 +882,41 @@ class Evaluator():
                             print("WARNING: skipped metric {} since not avail".format(metric))
                     handle.write('{} \n'.format(s['name']))
 
-        fold_df_paths = sorted([ii for ii in os.listdir(self.cf.test_dir) if 'test_df.pkl' in ii])
-        fold_seg_df_paths = sorted([ii for ii in os.listdir(self.cf.test_dir) if 'test_seg_df.pkl' in ii])
-        for paths in [fold_df_paths, fold_seg_df_paths]:
-            assert len(paths)<= self.cf.n_cv_splits, "found {} > nr of cv splits results dfs in {}".format(len(paths), self.cf.test_dir)
+
         if max_fold is None:
             max_fold = self.cf.n_cv_splits-1
         if self.cf.fold == max_fold:
             print("max fold/overall stats triggered")
+            self.cf.fold = 'overall'
             if self.cf.evaluate_fold_means:
                 metrics_to_score += [m + ext for m in self.cf.metrics for ext in ("_folds_mean", "_folds_std")]
 
-            with open(os.path.join(self.cf.test_dir, 'results.txt'), 'a') as handle:
+            if not self.cf.held_out_test_set or self.cf.eval_test_fold_wise:
+                fold_df_paths = sorted([ii for ii in os.listdir(self.cf.test_dir) if 'test_df.pkl' in ii])
+                fold_seg_df_paths = sorted([ii for ii in os.listdir(self.cf.test_dir) if 'test_seg_df.pkl' in ii])
+                for paths in [fold_df_paths, fold_seg_df_paths]:
+                    assert len(paths) <= self.cf.n_cv_splits, "found {} > nr of cv splits results dfs in {}".format(
+                        len(paths), self.cf.test_dir)
+                with open(os.path.join(self.cf.test_dir, 'results.txt'), 'a') as handle:
 
-                self.cf.fold = 'overall'
-                dfs_list = [pd.read_pickle(os.path.join(self.cf.test_dir, ii)) for ii in fold_df_paths]
-                seg_dfs_list = [pd.read_pickle(os.path.join(self.cf.test_dir, ii)) for ii in fold_seg_df_paths]
 
-                self.test_df = pd.concat(dfs_list, sort=True)
-                if len(seg_dfs_list)>0:
-                    self.seg_df = pd.concat(seg_dfs_list, sort=True)
-                stats, _ = self.return_metrics(self.test_df, self.cf.class_dict)
+                    dfs_list = [pd.read_pickle(os.path.join(self.cf.test_dir, ii)) for ii in fold_df_paths]
+                    seg_dfs_list = [pd.read_pickle(os.path.join(self.cf.test_dir, ii)) for ii in fold_seg_df_paths]
 
-                handle.write('\n****************************\n')
-                handle.write('\nOVERALL RESULTS \n')
-                handle.write('\n****************************\n')
-                handle.write('\ndf shape \n  \n'.format(self.test_df.shape))
-                for s in stats:
-                    for metric in metrics_to_score:
-                        if metric in s.keys():
-                            handle.write('{} {:0.3f}  '.format(metric, s[metric]))
-                    handle.write('{} \n'.format(s['name']))
+                    self.test_df = pd.concat(dfs_list, sort=True)
+                    if len(seg_dfs_list)>0:
+                        self.seg_df = pd.concat(seg_dfs_list, sort=True)
+                    stats, _ = self.return_metrics(self.test_df, self.cf.class_dict)
+
+                    handle.write('\n****************************\n')
+                    handle.write('\nOVERALL RESULTS \n')
+                    handle.write('\n****************************\n')
+                    handle.write('\ndf shape \n  \n'.format(self.test_df.shape))
+                    for s in stats:
+                        for metric in metrics_to_score:
+                            if metric in s.keys():
+                                handle.write('{} {:0.3f}  '.format(metric, s[metric]))
+                        handle.write('{} \n'.format(s['name']))
 
             results_table_path = os.path.join(self.cf.test_dir,"../../", 'results_table.csv')
             with open(results_table_path, 'a') as handle:
@@ -928,7 +932,6 @@ class Evaluator():
                 if hasattr(self.cf, "test_against_exact_gt"):
                     handle.write('{},'.format('Exact GT'))
                 for s in stats:
-                    assert "overall" in s['name'].split(" ")[0]
                     if self.cf.class_dict[self.cf.patient_class_of_interest] in s['name'] or "mean" in s["name"]:
                         for metric in metrics_to_score:
                             if metric in s.keys() and not np.isnan(s[metric]):

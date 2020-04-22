@@ -262,7 +262,7 @@ class Configs(DefaultConfigs):
             self.model_selection_criteria.update({name + "_avp": 0.8 for name in self.class_dict.values()})
 
         self.lr_decay_factor = 0.25
-        self.scheduling_patience = np.ceil(1800 / (self.num_train_batches * self.batch_size))
+        self.scheduling_patience = np.ceil(3600 / (self.num_train_batches * self.batch_size))
         self.weight_decay = 3e-5
         self.exclude_from_wd = []
         self.clip_norm = None  # number or None
@@ -332,7 +332,7 @@ class Configs(DefaultConfigs):
 
     def add_det_fpn_configs(self):
 
-      self.learning_rate = [3 * 1e-4] * self.num_epochs
+      self.learning_rate = [1 * 1e-4] * self.num_epochs
       self.dynamic_lr_scheduling = True
       self.scheduling_criterion = 'torch_loss'
       self.scheduling_mode = 'min' if "loss" in self.scheduling_criterion else 'max'

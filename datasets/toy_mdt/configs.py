@@ -40,7 +40,7 @@ class Configs(DefaultConfigs):
         self.dim = 2
         DefaultConfigs.__init__(self, server_env, self.dim)
         # one out of ['mrcnn', 'retina_net', 'retina_unet', 'detection_unet', 'ufrcnn'].
-        self.model = 'mrcnn'
+        self.model = 'retina_unet'
         self.model_path = 'models/{}.py'.format(self.model if not 'retina' in self.model else 'retina_net')
         self.model_path = os.path.join(self.source_dir, self.model_path)
         # int [0 < dataset_size]. select n patients from dataset for prototyping.
@@ -114,7 +114,7 @@ class Configs(DefaultConfigs):
         #  Schedule / Selection #
         #########################
 
-        self.num_epochs = 24
+        self.num_epochs = 26
         self.num_train_batches = 100 if self.dim == 2 else 200
         self.batch_size = 20 if self.dim == 2 else 8
 
@@ -132,17 +132,17 @@ class Configs(DefaultConfigs):
         # set dynamic_lr_scheduling to True to apply LR scheduling with below settings.
         self.dynamic_lr_scheduling = True
         self.lr_decay_factor = 0.25
-        self.scheduling_patience = np.ceil(2400 / (self.num_train_batches * self.batch_size))
+        self.scheduling_patience = np.ceil(4800 / (self.num_train_batches * self.batch_size))
         self.scheduling_criterion = 'donuts_ap'
         self.scheduling_mode = 'min' if "loss" in self.scheduling_criterion else 'max'
-        self.weight_decay = 3e-5
-        self.exclude_from_wd = []
-        self.clip_norm = None
+        self.weight_decay = 1e-5
+        self.exclude_from_wd = ["norm"]
+        self.clip_norm = 200
 
         #########################
         #   Testing / Plotting  #
         #########################
-
+        self.eval_test_fold_wise = True
         # set the top-n-epochs to be saved for temporal averaging in testing.
         self.save_n_models = 5
         self.test_n_epochs = 5
@@ -256,7 +256,7 @@ class Configs(DefaultConfigs):
         self.return_masks_in_test = False
 
         # set number of proposal boxes to plot after each epoch.
-        self.n_plot_rpn_props = 0 if self.dim == 2 else 0
+        self.n_plot_rpn_props = 2 if self.dim == 2 else 2
 
         # number of classes for head networks: n_foreground_classes + 1 (background)
         self.head_classes = self.num_classes + 1
@@ -282,14 +282,14 @@ class Configs(DefaultConfigs):
         self.rpn_nms_threshold = 0.7 if self.dim == 2 else 0.7
 
         # loss sampling settings.
-        self.rpn_train_anchors_per_image = 32 #per batch element
+        self.rpn_train_anchors_per_image = 64 #per batch element
         self.train_rois_per_image = 2 #per batch element
         self.roi_positive_ratio = 0.5
         self.anchor_matching_iou = 0.7
 
         # factor of top-k candidates to draw from  per negative sample (stochastic-hard-example-mining).
         # poolsize to draw top-k candidates from will be shem_poolsize * n_negative_samples.
-        self.shem_poolsize = 10
+        self.shem_poolsize = 4
 
         self.pool_size = (7, 7) if self.dim == 2 else (7, 7, 3)
         self.mask_pool_size = (14, 14) if self.dim == 2 else (14, 14, 5)

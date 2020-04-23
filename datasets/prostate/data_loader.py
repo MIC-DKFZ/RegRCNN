@@ -577,7 +577,7 @@ def get_train_generators(cf, logger, data_statistics=True):
     test_ids, val_ids = set_splits.pop(cf.fold), set_splits.pop(cf.fold-1)
     train_ids = np.concatenate(set_splits, axis=0)
 
-    if cf.held_out_test_set:
+    if cf.hold_out_test_set:
         train_ids = np.concatenate((train_ids, test_ids), axis=0)
         test_ids = []
 
@@ -608,7 +608,7 @@ def get_test_generator(cf, logger):
     since rsync will not copy if files already exist in destination.
     """
 
-    if cf.held_out_test_set:
+    if cf.hold_out_test_set:
         sourcedir = cf.test_data_sourcedir
         test_ids = None
     else:

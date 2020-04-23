@@ -256,7 +256,7 @@ class Configs(DefaultConfigs):
         self.test_n_epochs = self.save_n_models
 
         self.test_aug_axes = (0,1,(0,1))  # None or list: choices are 0,1,(0,1) (0==spatial y, 1== spatial x).
-        self.held_out_test_set = False
+        self.hold_out_test_set = False
         self.max_test_patients = "all"  # "all" or number
 
         self.report_score_level = ['rois', 'patient']  # choose list from 'patient', 'rois'

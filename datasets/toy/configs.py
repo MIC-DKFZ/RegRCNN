@@ -272,7 +272,7 @@ class Configs(DefaultConfigs):
         #########################
 
         self.test_aug_axes = (0,1,(0,1)) # None or list: choices are 0,1,(0,1)
-        self.held_out_test_set = True
+        self.hold_out_test_set = True
         self.max_test_patients = "all"  # number or "all" for all
 
         self.test_against_exact_gt = True # only True implemented

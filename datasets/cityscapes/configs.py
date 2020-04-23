@@ -283,7 +283,7 @@ class Configs(DefaultConfigs):
         #########################
 
         self.test_aug_axes = None #None or list: choices are 2,3,(2,3)
-        self.held_out_test_set = False
+        self.hold_out_test_set = False
         self.max_test_patients = 'all' # 'all' for all
         self.report_score_level = ['rois',]  # choose list from 'patient', 'rois'
         self.patient_class_of_interest = 1

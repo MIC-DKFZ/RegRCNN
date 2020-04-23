@@ -616,7 +616,7 @@ class ModelSelector:
         else:
             torch.save(state, os.path.join(self.cf.fold_dir, 'last_state.pth'))
 
-def parse_params_for_optim(net: torch.nn.Module, weight_decay: float = 0., exclude_from_wd: Iterable = ("norm", "bias")):
+def parse_params_for_optim(net: torch.nn.Module, weight_decay: float = 0., exclude_from_wd: Iterable = ("norm",)):
     """Format network parameters for the optimizer.
     Convenience function to include options for group-specific settings like weight decay.
     :param net:

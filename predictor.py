@@ -715,8 +715,8 @@ class Predictor:
                 would consume critically large memory amount. todo evaluation of instance/semantic segmentation.
         """
 
-        results_file = 'pred_results.pkl' if not self.cf.held_out_test_set else 'pred_results_held_out.pkl'
-        if not self.cf.held_out_test_set or self.cf.eval_test_fold_wise:
+        results_file = 'pred_results.pkl' if not self.cf.hold_out_test_set else 'pred_results_held_out.pkl'
+        if not self.cf.hold_out_test_set or not self.cf.ensemble_folds:
             self.logger.info("loading saved predictions of fold {}".format(self.cf.fold))
             with open(os.path.join(self.cf.fold_dir, results_file), 'rb') as handle:
                 results_list = pickle.load(handle)
@@ -961,7 +961,7 @@ class Predictor:
 
             results_per_patient.append([results_dict, pid])
 
-        out_string = 'pred_results_held_out' if self.cf.held_out_test_set else 'pred_results'
+        out_string = 'pred_results_held_out' if self.cf.hold_out_test_set else 'pred_results'
         with open(os.path.join(self.cf.fold_dir, '{}.pkl'.format(out_string)), 'wb') as handle:
             pickle.dump(results_per_patient, handle)
 

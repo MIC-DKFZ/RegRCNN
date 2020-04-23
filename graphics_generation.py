@@ -90,7 +90,7 @@ def prostate_GT_examples(exp_dir='', plot_dir=None, pid=8., z_ix=None):
     test_ids, val_ids = set_splits.pop(cf.fold), set_splits.pop(cf.fold - 1)
     train_ids = np.concatenate(set_splits, axis=0)
 
-    if cf.held_out_test_set:
+    if cf.hold_out_test_set:
         train_ids = np.concatenate((train_ids, test_ids), axis=0)
         test_ids = []
     print("data set loaded with: {} train / {} val / {} test patients".format(len(train_ids), len(val_ids),
@@ -176,7 +176,7 @@ def prostate_dataset_stats(exp_dir='', plot_dir=None, show_splits=True,):
     test_ids, val_ids = set_splits.pop(cf.fold), set_splits.pop(cf.fold - 1)
     train_ids = np.concatenate(set_splits, axis=0)
 
-    if cf.held_out_test_set:
+    if cf.hold_out_test_set:
         train_ids = np.concatenate((train_ids, test_ids), axis=0)
         test_ids = []
 

@@ -301,7 +301,7 @@ def get_test_generator(cf, logger):
     since rsync will not copy if files already exist in destination.
     """
 
-    if cf.held_out_test_set:
+    if cf.hold_out_test_set:
         sourcedir = cf.test_data_sourcedir
         test_ids = None
     else:

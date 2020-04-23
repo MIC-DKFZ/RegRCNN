@@ -146,11 +146,13 @@ class DefaultConfigs:
         self.test_aug = True
 
         # if True, test data lies in a separate folder and is not part of the cross validation.
-        self.held_out_test_set = False
-        # if hold-out test set: eval each fold's parameters separately on the test set
-        self.eval_test_fold_wise = True
+        self.hold_out_test_set = False
+        # if hold-out test set: if ensemble_folds is True, predictions of all folds on the common hold-out test set
+        # are aggregated (like ensemble members). if False, each fold's parameters are evaluated separately on the test
+        # set and the evaluations are aggregated (like normal cross-validation folds).
+        self.ensemble_folds = False
 
-        # if held_out_test_set provided, ensemble predictions over models of all trained cv-folds.
+        # if hold_out_test_set provided, ensemble predictions over models of all trained cv-folds.
         self.ensemble_folds = False
 
         # what metrics to evaluate

@@ -301,7 +301,7 @@ if __name__ == '__main__':
         cf = utils.prep_exp(args.dataset_name, args.exp_dir, args.server_env, use_stored_settings=True, is_training=False)
         logger = utils.get_logger(cf.exp_dir, cf.server_env, cf.sysmetrics_interval)
 
-        if cf.held_out_test_set and not cf.eval_test_fold_wise:
+        if cf.hold_out_test_set and cf.ensemble_folds:
             predictor = Predictor(cf, net=None, logger=logger, mode='analysis')
             results_list = predictor.load_saved_predictions()
             logger.info('starting evaluation...')

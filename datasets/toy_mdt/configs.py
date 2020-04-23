@@ -45,7 +45,7 @@ class Configs(DefaultConfigs):
         self.model_path = os.path.join(self.source_dir, self.model_path)
         # int [0 < dataset_size]. select n patients from dataset for prototyping.
         self.select_prototype_subset = None
-        self.held_out_test_set = True
+        self.hold_out_test_set = True
         # including val set. will be 3/4 train, 1/4 val.
         self.n_train_val_data = 2500
 
@@ -142,7 +142,7 @@ class Configs(DefaultConfigs):
         #########################
         #   Testing / Plotting  #
         #########################
-        self.eval_test_fold_wise = True
+        self.ensemble_folds = False
         # set the top-n-epochs to be saved for temporal averaging in testing.
         self.save_n_models = 5
         self.test_n_epochs = 5

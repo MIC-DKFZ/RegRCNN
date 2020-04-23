@@ -891,7 +891,7 @@ class Evaluator():
             if self.cf.evaluate_fold_means:
                 metrics_to_score += [m + ext for m in self.cf.metrics for ext in ("_folds_mean", "_folds_std")]
 
-            if not self.cf.held_out_test_set or self.cf.eval_test_fold_wise:
+            if not self.cf.hold_out_test_set or not self.cf.ensemble_folds:
                 fold_df_paths = sorted([ii for ii in os.listdir(self.cf.test_dir) if 'test_df.pkl' in ii])
                 fold_seg_df_paths = sorted([ii for ii in os.listdir(self.cf.test_dir) if 'test_seg_df.pkl' in ii])
                 for paths in [fold_df_paths, fold_seg_df_paths]:

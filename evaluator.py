@@ -848,6 +848,61 @@ class Evaluator():
 
         return all_stats, monitor_metrics
 
+    def write_to_results_table(self, stats, metrics_to_score):
+        """Write overall results to a common inter-experiment table.
+        :param metrics_to_score:
+        :return:
+        """
+        results_table_path = os.path.join(self.cf.test_dir, "../../", 'results_table.csv')
+        with open(results_table_path, 'a') as handle:
+            # ---column headers---
+            handle.write('\n{},'.format("Experiment Name"))
+            handle.write('{},'.format("Time Stamp"))
+            handle.write('{},'.format("Samples Seen"))
+            handle.write('{},'.format("Spatial Dim"))
+            handle.write('{},'.format("Patch Size"))
+            handle.write('{},'.format("CV Folds"))
+            handle.write('{},'.format("{}-clustering IoU".format(self.cf.clustering)))
+            handle.write('{},'.format("Merge-2D-to-3D IoU"))
+            if hasattr(self.cf, "test_against_exact_gt"):
+                handle.write('{},'.format('Exact GT'))
+            for s in stats:
+                if self.cf.class_dict[self.cf.patient_class_of_interest] in s['name'] or "mean" in s["name"]:
+                    for metric in metrics_to_score:
+                        if metric in s.keys() and not np.isnan(s[metric]):
+                            if metric == 'ap':
+                                handle.write('{}_{} : {}_{},'.format(*s['name'].split(" ")[1:], metric,
+                                                                     int(np.mean(self.cf.ap_match_ious) * 100)))
+                            elif not "folds_std" in metric:
+                                handle.write('{}_{} : {},'.format(*s['name'].split(" ")[1:], metric))
+                        else:
+                            print("WARNING: skipped metric {} since not avail".format(metric))
+            handle.write('\n')
+
+            # --- columns content---
+            handle.write('{},'.format(self.cf.exp_dir.split(os.sep)[-1]))
+            handle.write('{},'.format(time.strftime("%d%b%y %H:%M:%S")))
+            handle.write('{},'.format(self.cf.num_epochs * self.cf.num_train_batches * self.cf.batch_size))
+            handle.write('{}D,'.format(self.cf.dim))
+            handle.write('{},'.format("x".join([str(self.cf.patch_size[i]) for i in range(self.cf.dim)])))
+            handle.write('{},'.format(str(self.test_df.fold.unique().tolist()).replace(",", "")))
+            handle.write('{},'.format(self.cf.clustering_iou if self.cf.clustering else str("N/A")))
+            handle.write('{},'.format(self.cf.merge_3D_iou if self.cf.merge_2D_to_3D_preds else str("N/A")))
+            if hasattr(self.cf, "test_against_exact_gt"):
+                handle.write('{},'.format(self.cf.test_against_exact_gt))
+            for s in stats:
+                if self.cf.class_dict[self.cf.patient_class_of_interest] in s['name'] or "mean" in s["name"]:
+                    for metric in metrics_to_score:
+                        if metric in s.keys() and not np.isnan(
+                                s[metric]):  # needed as long as no dice on patient level possible
+                            if "folds_mean" in metric:
+                                handle.write('{:0.3f}\u00B1{:0.3f}, '.format(s[metric],
+                                                                             s["_".join(
+                                                                                 (*metric.split("_")[:-1], "std"))]))
+                            elif not "folds_std" in metric:
+                                handle.write('{:0.3f}, '.format(s[metric]))
+
+            handle.write('\n')
 
     def score_test_df(self, max_fold=None, internal_df=True):
         """
@@ -892,14 +947,14 @@ class Evaluator():
                 metrics_to_score += [m + ext for m in self.cf.metrics for ext in ("_folds_mean", "_folds_std")]
 
             if not self.cf.hold_out_test_set or not self.cf.ensemble_folds:
-                fold_df_paths = sorted([ii for ii in os.listdir(self.cf.test_dir) if 'test_df.pkl' in ii])
-                fold_seg_df_paths = sorted([ii for ii in os.listdir(self.cf.test_dir) if 'test_seg_df.pkl' in ii])
+                fold_df_paths = sorted([ii for ii in os.listdir(self.cf.test_dir)
+                                        if 'test_df.pkl' in ii and not "overall" in ii])
+                fold_seg_df_paths = sorted([ii for ii in os.listdir(self.cf.test_dir)
+                                            if 'test_seg_df.pkl' in ii and not "overall" in ii])
                 for paths in [fold_df_paths, fold_seg_df_paths]:
                     assert len(paths) <= self.cf.n_cv_splits, "found {} > nr of cv splits results dfs in {}".format(
                         len(paths), self.cf.test_dir)
                 with open(os.path.join(self.cf.test_dir, 'results.txt'), 'a') as handle:
-
-
                     dfs_list = [pd.read_pickle(os.path.join(self.cf.test_dir, ii)) for ii in fold_df_paths]
                     seg_dfs_list = [pd.read_pickle(os.path.join(self.cf.test_dir, ii)) for ii in fold_seg_df_paths]
 
@@ -918,52 +973,7 @@ class Evaluator():
                                 handle.write('{} {:0.3f}  '.format(metric, s[metric]))
                         handle.write('{} \n'.format(s['name']))
 
-            results_table_path = os.path.join(self.cf.test_dir,"../../", 'results_table.csv')
-            with open(results_table_path, 'a') as handle:
-                #---column headers---
-                handle.write('\n{},'.format("Experiment Name"))
-                handle.write('{},'.format("Time Stamp"))
-                handle.write('{},'.format("Samples Seen"))
-                handle.write('{},'.format("Spatial Dim"))
-                handle.write('{},'.format("Patch Size"))
-                handle.write('{},'.format("CV Folds"))
-                handle.write('{},'.format("{}-clustering IoU".format(self.cf.clustering)))
-                handle.write('{},'.format("Merge-2D-to-3D IoU"))
-                if hasattr(self.cf, "test_against_exact_gt"):
-                    handle.write('{},'.format('Exact GT'))
-                for s in stats:
-                    if self.cf.class_dict[self.cf.patient_class_of_interest] in s['name'] or "mean" in s["name"]:
-                        for metric in metrics_to_score:
-                            if metric in s.keys() and not np.isnan(s[metric]):
-                                if metric=='ap':
-                                    handle.write('{}_{} : {}_{},'.format(*s['name'].split(" ")[1:], metric, int(np.mean(self.cf.ap_match_ious)*100)))
-                                elif not "folds_std" in metric:
-                                    handle.write('{}_{} : {},'.format(*s['name'].split(" ")[1:], metric))
-                            else:
-                                print("WARNING: skipped metric {} since not avail".format(metric))
-                handle.write('\n')
-
-                #--- columns content---
-                handle.write('{},'.format(self.cf.exp_dir.split(os.sep)[-1]))
-                handle.write('{},'.format(time.strftime("%d%b%y %H:%M:%S")))
-                handle.write('{},'.format(self.cf.num_epochs*self.cf.num_train_batches*self.cf.batch_size))
-                handle.write('{}D,'.format(self.cf.dim))
-                handle.write('{},'.format("x".join([str(self.cf.patch_size[i]) for i in range(self.cf.dim)])))
-                handle.write('{},'.format(str(self.test_df.fold.unique().tolist()).replace(",", "")))
-                handle.write('{},'.format(self.cf.clustering_iou if self.cf.clustering else str("N/A")))
-                handle.write('{},'.format(self.cf.merge_3D_iou if self.cf.merge_2D_to_3D_preds else str("N/A")))
-                if hasattr(self.cf, "test_against_exact_gt"):
-                    handle.write('{},'.format(self.cf.test_against_exact_gt))
-                for s in stats:
-                    if self.cf.class_dict[self.cf.patient_class_of_interest] in s['name'] or "mean" in s["name"]:
-                        for metric in metrics_to_score:
-                            if metric in s.keys() and not np.isnan(s[metric]): # needed as long as no dice on patient level possible
-                                if "folds_mean" in metric:
-                                    handle.write('{:0.3f}\u00B1{:0.3f}, '.format(s[metric], s["_".join((*metric.split("_")[:-1], "std"))]))
-                                elif not "folds_std" in metric:
-                                    handle.write('{:0.3f}, '.format(s[metric]))
-
-                handle.write('\n')
+            self.write_to_results_table(stats, metrics_to_score)
 
             with open(os.path.join(self.cf.test_dir, 'results_extr_scores.txt'), 'w') as handle:
                 handle.write('\n****************************\n')

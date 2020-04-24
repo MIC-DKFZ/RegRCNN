@@ -647,7 +647,7 @@ def parse_params_for_optim(net: torch.nn.Module, weight_decay: float = 0., exclu
         if isinstance(module, exclude_module_types):
             no_dec.extend(module.parameters())
         else:
-            for param_name, param in module.named_parameters():
+            for param_name, param in module.named_parameters(recurse=False):
                 if np.any([ename in param_name for ename in exclude_weight_names]):
                     no_dec.append(param)
                 else:

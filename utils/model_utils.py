@@ -1050,16 +1050,20 @@ def apply_box_deltas_2D(boxes, deltas):
     # Apply deltas
     center_y += deltas[:, 0] * height
     center_x += deltas[:, 1] * width
-    height *= torch.exp(deltas[:, 2])
-    width *= torch.exp(deltas[:, 3])
+
+    # clip delta preds in order to avoid infs and later nans after exponentiation.
+    height *= torch.exp(torch.clamp(deltas[:, 2], max=6.))
+    width *= torch.exp(torch.clamp(deltas[:, 3], max=6.))
+
 
     non_nans = width == width
     assert torch.all(non_nans), "inside delta apply, width has nans: {}".format(
         width[~non_nans])
 
-    # 0.*inf results in nan. fix nans to zeros.
-    height[height!=height] = 0.
-    width[width!=width] = 0.
+    # 0.*inf results in nan. fix nans to zeros?
+    # height[height!=height] = 0.
+    # width[width!=width] = 0.
+
 
     non_nans = height == height
     assert torch.all(non_nans), "inside delta apply, height has nans directly after setting to zero: {}".format(

@@ -240,8 +240,7 @@ if __name__ == '__main__':
             folds = [0,1]
             cf.batch_size, cf.num_epochs, cf.min_save_thresh, cf.save_n_models = 3 if cf.dim==2 else 1, 2, 0, 2
             cf.num_train_batches, cf.num_val_batches, cf.max_val_patients = 5, 1, 1
-            cf.test_n_epochs = cf.save_n_models
-            cf.max_test_patients = 1
+            cf.test_n_epochs, cf.max_test_patients = cf.save_n_models, 2
             torch.backends.cudnn.benchmark = cf.dim==3
         else:
             torch.backends.cudnn.benchmark = cf.cuda_benchmark
@@ -285,7 +284,7 @@ if __name__ == '__main__':
             folds = range(cf.n_cv_splits)
         if args.dev:
             folds = folds[:2]
-            cf.batch_size, cf.max_test_patients, cf.test_n_epochs = 1 if cf.dim==2 else 1, 2, 2
+            cf.max_test_patients, cf.test_n_epochs = 2, 2
         else:
             torch.backends.cudnn.benchmark = cf.cuda_benchmark
         for fold in folds:
@@ -302,18 +301,19 @@ if __name__ == '__main__':
         cf = utils.prep_exp(args.dataset_name, args.exp_dir, args.server_env, use_stored_settings=True, is_training=False)
         logger = utils.get_logger(cf.exp_dir, cf.server_env, cf.sysmetrics_interval)
 
-        if cf.held_out_test_set and not cf.eval_test_fold_wise:
+        if cf.hold_out_test_set and cf.ensemble_folds:
             predictor = Predictor(cf, net=None, logger=logger, mode='analysis')
             results_list = predictor.load_saved_predictions()
             logger.info('starting evaluation...')
-            cf.fold = 0
+            cf.fold = "overall"
             evaluator = Evaluator(cf, logger, mode='test')
             evaluator.evaluate_predictions(results_list)
-            evaluator.score_test_df(max_fold=0)
+            evaluator.score_test_df(max_fold=cf.fold)
         else:
             fold_dirs = sorted([os.path.join(cf.exp_dir, f) for f in os.listdir(cf.exp_dir) if
                          os.path.isdir(os.path.join(cf.exp_dir, f)) and f.startswith("fold")])
             if args.dev:
+                cf.test_n_epochs = 2
                 fold_dirs = fold_dirs[:1]
             if folds is None:
                 folds = range(cf.n_cv_splits)

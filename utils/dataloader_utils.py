@@ -323,22 +323,25 @@ class BatchGenerator(SlimDataLoaderBase):
         self.dataset_length = len(self._data)
         self.dataset_pids = list(self._data.keys())
 
-        self.n_filled_threads = min(int(self.dataset_length/self.batch_size), self.number_of_threads_in_multithreaded)
-        if self.n_filled_threads != self.number_of_threads_in_multithreaded:
-            print("Adjusting nr of threads from {} to {}.".format(self.number_of_threads_in_multithreaded,
-                                                                  self.n_filled_threads))
 
+        self.sample_pids_w_replace = sample_pids_w_replace
+        self.n_filled_threads = min(int(self.dataset_length/self.batch_size), self.number_of_threads_in_multithreaded)
+        if not self.sample_pids_w_replace:
+            # if not sampling w replace --> iterator-like behaviour but multi-threaded. adjust threads
+            # s.t. each thread has enough patients for at least one batch.
+            assert len(self.dataset_pids) / self.n_filled_threads >= self.batch_size, \
+                "at least one batch needed per thread. dataset size: {}, n_threads: {}, batch_size: {}.".format(
+                    len(self.dataset_pids), self.n_filled_threads, self.batch_size)
+            self.lock = Lock()
+
+            if self.n_filled_threads != self.number_of_threads_in_multithreaded:
+                print("adjusting nr of threads from {} to {}.".format(self.number_of_threads_in_multithreaded,
+                                                                      self.n_filled_threads))
         self.rgen = np.random.RandomState(seed=seed)
         self.eligible_pids = self.rgen.permutation(self.dataset_pids.copy())
         self.eligible_pids = np.array_split(self.eligible_pids, self.n_filled_threads)
         self.eligible_pids = sorted(self.eligible_pids, key=len, reverse=True)
 
-        self.sample_pids_w_replace = sample_pids_w_replace
-        if not self.sample_pids_w_replace:
-            assert len(self.dataset_pids) / self.n_filled_threads >= self.batch_size, \
-                "at least one batch needed per thread. dataset size: {}, n_threads: {}, batch_size: {}.".format(
-                    len(self.dataset_pids), self.n_filled_threads, self.batch_size)
-            self.lock = Lock()
 
         if hasattr(cf, "balance_target"):
             # WARNING: "balance targets are only implemented for 1-d targets (or 1-component vectors)"
@@ -370,8 +373,8 @@ class BatchGenerator(SlimDataLoaderBase):
         :param self.targets:  dic holding {patient_specifier : patient-wise-unique ROI targets}
         :return: probability distribution over all pids. draw without replace from this.
         """
-        # oversampling of fg: limit bg weights to 1 s.t. bg is weighted at max as heavily as it occurs.
-        max_bg_weight = 1.
+        # oversampling of fg: limit bg weights to anything <= fg weights by setting factor < 1 to overweight fg.
+        bg_weight_factor = 0.1
 
         self.unique_ts = np.unique([v for pat in self.targets.values() for v in pat])
         self.sample_stats = pd.DataFrame(columns=[str(ix)+suffix for ix in self.unique_ts for suffix in ["", "_bg"]], index=list(self.targets.keys()))
@@ -389,7 +392,7 @@ class BatchGenerator(SlimDataLoaderBase):
         cum_weights = anchor * len(self.fg_bg_weights)
         self.fg_bg_weights /= cum_weights
         mask = ["_bg" in ix for ix in self.fg_bg_weights.index]
-        self.fg_bg_weights.loc[mask] = self.fg_bg_weights.loc[mask].apply(lambda x: min(x, max_bg_weight))
+        self.fg_bg_weights.loc[mask] = self.fg_bg_weights.loc[mask].apply(lambda x: x * bg_weight_factor)
 
         self.p_probs = self.sample_stats.apply(self.sample_targets_to_weights, args=(self.fg_bg_weights,), axis=1).sum(axis=1)
         self.p_probs = self.p_probs / self.p_probs.sum()

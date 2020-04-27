@@ -262,7 +262,7 @@ class Configs(DefaultConfigs):
             self.model_selection_criteria.update({name + "_avp": 0.8 for name in self.class_dict.values()})
 
         self.lr_decay_factor = 0.25
-        self.scheduling_patience = np.ceil(1800 / (self.num_train_batches * self.batch_size))
+        self.scheduling_patience = np.ceil(3600 / (self.num_train_batches * self.batch_size))
         self.weight_decay = 3e-5
         self.exclude_from_wd = []
         self.clip_norm = None  # number or None
@@ -272,7 +272,7 @@ class Configs(DefaultConfigs):
         #########################
 
         self.test_aug_axes = (0,1,(0,1)) # None or list: choices are 0,1,(0,1)
-        self.held_out_test_set = True
+        self.hold_out_test_set = True
         self.max_test_patients = "all"  # number or "all" for all
 
         self.test_against_exact_gt = True # only True implemented
@@ -319,7 +319,7 @@ class Configs(DefaultConfigs):
         #   Add model specifics #
         #########################
 
-        {'mrcnn': self.add_mrcnn_configs, 'mrcnn_aleatoric': self.add_mrcnn_configs,
+        {'mrcnn': self.add_mrcnn_configs,
          'retina_net': self.add_mrcnn_configs, 'retina_unet': self.add_mrcnn_configs,
          'detection_unet': self.add_det_unet_configs, 'detection_fpn': self.add_det_fpn_configs
          }[self.model]()

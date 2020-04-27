@@ -61,7 +61,7 @@ class Configs(DefaultConfigs):
             self.data_sourcedir = '/datasets/datasets_ramien/lidc/data/{}_npz/'.format(self.pp_name)
 
         # one out of ['mrcnn', 'retina_net', 'retina_unet', 'detection_fpn'].
-        self.model = 'mrcnn'
+        self.model = 'detection_fpn'
         self.model_path = 'models/{}.py'.format(self.model if not 'retina' in self.model else 'retina_net')
         self.model_path = os.path.join(self.source_dir, self.model_path)
 
@@ -71,7 +71,7 @@ class Configs(DefaultConfigs):
         #########################
 
         # dimension the model operates in. one out of [2, 3].
-        self.dim = 2
+        self.dim = 3
 
         # 'class': standard object classification per roi, pairwise combinable with each of below tasks.
         # if 'class' is omitted from tasks, object classes will be fg/bg (1/0) from RPN.
@@ -256,7 +256,7 @@ class Configs(DefaultConfigs):
         self.test_n_epochs = self.save_n_models
 
         self.test_aug_axes = (0,1,(0,1))  # None or list: choices are 0,1,(0,1) (0==spatial y, 1== spatial x).
-        self.held_out_test_set = False
+        self.hold_out_test_set = False
         self.max_test_patients = "all"  # "all" or number
 
         self.report_score_level = ['rois', 'patient']  # choose list from 'patient', 'rois'
@@ -295,7 +295,7 @@ class Configs(DefaultConfigs):
         #########################
 
         {'detection_fpn': self.add_det_fpn_configs,
-         'mrcnn': self.add_mrcnn_configs, 'mrcnn_aleatoric': self.add_mrcnn_configs,
+         'mrcnn': self.add_mrcnn_configs,
          'retina_net': self.add_mrcnn_configs,
          'retina_unet': self.add_mrcnn_configs,
         }[self.model]()

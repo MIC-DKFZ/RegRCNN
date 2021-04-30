@@ -62,6 +62,6 @@ tqdm==4.39.0
 traceback2==1.4.0
 traitlets==4.3.3
 unittest2==1.1.0
-urllib3==1.25.7
+urllib3==1.25.8
 wcwidth==0.1.7
 Werkzeug==1.0.1

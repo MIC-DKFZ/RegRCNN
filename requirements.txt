@@ -16,7 +16,7 @@ imageio==2.6.1
 ipython==7.9.0
 ipython-genutils==0.2.0
 jedi==0.15.1
-joblib==0.14.0
+joblib==1.2.0
 kiwisolver==1.1.0
 linecache2==1.0.0
 Markdown==3.1.1

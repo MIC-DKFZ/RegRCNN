@@ -2,7 +2,7 @@ absl-py==0.8.1
 backcall==0.1.0
 batchgenerators==0.19.7
 cachetools==3.1.1
-certifi==2019.11.28
+certifi==2022.12.7
 chardet==3.0.4
 cycler==0.10.0
 Cython==0.29.14
